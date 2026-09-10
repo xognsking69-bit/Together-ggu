@@ -41,3 +41,11 @@ example
 # generated native folders
 /ios
 /android
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
+worker/.dev.vars
+worker/.env
