@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert, Modal, Pressable, SafeAreaView, ScrollView, Share,
+  Alert, Image, Modal, Pressable, SafeAreaView, ScrollView, Share,
   StyleSheet, Text, TextInput, View
 } from "react-native";
 
@@ -11,6 +11,7 @@ import { computeBalances, minimalTransfers } from "../settlement";
 import { loadState, saveState } from "../storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
+import * as ImagePicker from "expo-image-picker";
 
 
 (TextInput as any).defaultProps = {
@@ -52,7 +53,7 @@ const INITIAL: AppState = {
 
 type Tab = "home" | "expense" | "game" | "settle" | "manage";
 type ExpenseView = "add" | "list";
-type ManageSection = "trip" | "people" | "checklist" | "decorate" | "backup" | "profile" | "danger";
+type ManageSection = "checklist" | "decorate" | "backup" | "profile";
 
 type ThemeId = "lavender" | "ocean" | "peach" | "mint";
 
@@ -78,6 +79,7 @@ type BackgroundStyleId = "theme" | "white" | "cream";
 const DECOR_KEY = "trip-split-decor-v1";
 
 const PLAN_KEY = "trip-split-plans-v1";
+const PROFILE_PHOTO_KEY = "trip-split-profile-photos-v1";
 type PlanType = TripPlan["type"];
 
 const CARD_STYLES: Record<CardStyleId, { name:string; emoji:string; radius:number; shadowOpacity:number; elevation:number }> = {
@@ -119,7 +121,7 @@ export default function Index() {
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("home");
   const [expenseView, setExpenseView] = useState<ExpenseView>("add");
-  const [openManageSection, setOpenManageSection] = useState<ManageSection | null>("trip");
+  const [openManageSection, setOpenManageSection] = useState<ManageSection | null>("checklist");
 
   const [personName, setPersonName] = useState("");
   const [title, setTitle] = useState("");
@@ -152,6 +154,8 @@ export default function Index() {
   const [newTripStart, setNewTripStart] = useState("");
   const [newTripEnd, setNewTripEnd] = useState("");
   const [newTripBudget, setNewTripBudget] = useState("");
+  const [profilePhotos, setProfilePhotos] = useState<Record<string,string>>({});
+  const [profilePhotosReady, setProfilePhotosReady] = useState(false);
 
   useEffect(() => {
     loadState().then(saved => {
@@ -215,6 +219,23 @@ export default function Index() {
   useEffect(() => {
     AsyncStorage.setItem(PLAN_KEY, JSON.stringify(plansByTrip)).catch(() => {});
   }, [plansByTrip]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(PROFILE_PHOTO_KEY)
+      .then(value => {
+        if (value) {
+          const parsed = JSON.parse(value);
+          if (parsed && typeof parsed === "object") setProfilePhotos(parsed);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setProfilePhotosReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (!profilePhotosReady) return;
+    AsyncStorage.setItem(PROFILE_PHOTO_KEY, JSON.stringify(profilePhotos)).catch(() => {});
+  }, [profilePhotos, profilePhotosReady]);
 
   const activeTrip = state.trips.find(t => t.id === state.activeTripId) || state.trips[0];
   const activePlans = plansByTrip[activeTrip.id] || [];
@@ -371,6 +392,40 @@ if (!activeTrip) return null;
     }));
   }
 
+  async function pickProfilePhoto(personId:string) {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("사진 권한 필요", "프로필 사진을 선택하려면 사진 접근 권한을 허용해주세요.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: true,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    const photoValue = asset.base64
+      ? `data:${asset.mimeType || "image/jpeg"};base64,${asset.base64}`
+      : asset.uri;
+
+    if (!photoValue) return;
+    setProfilePhotos(prev => ({...prev, [personId]: photoValue}));
+  }
+
+  function removeProfilePhoto(personId:string) {
+    setProfilePhotos(prev => {
+      const next = {...prev};
+      delete next[personId];
+      return next;
+    });
+  }
+
   function addPerson() {
     const name = personName.trim();
     if (!name) return;
@@ -405,6 +460,7 @@ if (!activeTrip) return null;
         return next.length ? next : [state.profile.id];
       });
       if (payerId===id) setPayerId(state.profile.id);
+      removeProfilePhoto(id);
     };
 
     if (usedExpenses.length) {
@@ -595,7 +651,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Trip Split",
-      version: "V1.9",
+      version: "V2.7.2",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -604,6 +660,7 @@ if (!activeTrip) return null;
         backgroundStyleId,
       },
       plansByTrip,
+      profilePhotos,
     };
 
     try {
@@ -654,6 +711,10 @@ if (!activeTrip) return null;
                 setPlansByTrip(parsed.plansByTrip);
               }
 
+              if (parsed?.profilePhotos && typeof parsed.profilePhotos === "object") {
+                setProfilePhotos(parsed.profilePhotos);
+              }
+
               const appearance = parsed?.appearance;
               if (appearance?.themeId && appearance.themeId in THEMES) {
                 setThemeId(appearance.themeId as ThemeId);
@@ -674,7 +735,7 @@ if (!activeTrip) return null;
 
               setRestoreText("");
               setShowRestore(false);
-              Alert.alert("복원 완료", "여행·지출·인원·꾸미기 설정을 복원했어요.");
+              Alert.alert("복원 완료", "여행·지출·인원·프로필 사진·꾸미기 설정을 복원했어요.");
             } catch {
               Alert.alert("복원 실패", "백업 내용을 다시 확인해주세요.");
             }
@@ -701,7 +762,7 @@ if (!activeTrip) return null;
           <Text style={[styles.decorateShortcutText,{color:theme.accent}]}>🎨 꾸미기</Text>
         </Pressable>
         <View style={[styles.versionPill,{backgroundColor:theme.accentSoft}]}>
-          <Text style={[styles.version,{color:theme.accent}]}>V2.5</Text>
+          <Text style={[styles.version,{color:theme.accent}]}>V2.7.2</Text>
         </View>
       </View>
 
@@ -739,6 +800,94 @@ if (!activeTrip) return null;
                 </Pressable>
               </View>
             </ScrollView>
+
+            <View style={styles.homeTripDivider}/>
+
+            <View style={styles.homeTripSectionHeader}>
+              <View style={styles.flex}>
+                <Text style={styles.homeTripSectionTitle}>동행인</Text>
+                <Text style={styles.homeTripActionHint}>현재 여행에 함께하는 사람을 바로 관리해요.</Text>
+              </View>
+              <View style={[styles.homePeopleCount,{backgroundColor:theme.accentSoft}]}>
+                <Text style={[styles.homePeopleCountText,{color:theme.accent}]}>{activeTrip.people.length}명</Text>
+              </View>
+            </View>
+
+            <View style={styles.homePeopleList}>
+              {activeTrip.people.map(p=>(
+                <View key={p.id} style={styles.homePersonRow}>
+                  <Pressable
+                    onPress={()=>pickProfilePhoto(p.id)}
+                    style={[styles.avatarButton,{backgroundColor:theme.accentSoft}]}
+                  >
+                    {profilePhotos[p.id] ? (
+                      <Image source={{uri:profilePhotos[p.id]}} style={styles.avatarImage}/>
+                    ) : (
+                      <Text style={[styles.avatarInitial,{color:theme.accent}]}>
+                        {(p.name || "나").trim().slice(0,1)}
+                      </Text>
+                    )}
+                  </Pressable>
+
+                  <Pressable onPress={()=>pickProfilePhoto(p.id)} style={styles.flex}>
+                    <Text style={styles.homePersonName}>
+                      {p.id===state.profile.id ? `${p.name} · 나` : p.name}
+                    </Text>
+                    <Text style={styles.homePersonPhotoHint}>
+                      {profilePhotos[p.id] ? "사진 변경" : "프로필 사진 추가"}
+                    </Text>
+                  </Pressable>
+
+                  {p.id!==state.profile.id && (
+                    <Pressable
+                      onPress={()=>removePerson(p.id)}
+                      hitSlop={8}
+                      style={styles.homePersonDeleteButton}
+                    >
+                      <Text style={styles.homePersonDeleteText}>삭제</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.homePersonAddRow}>
+              <TextInput
+                style={[styles.input,styles.flex]}
+                value={personName}
+                onChangeText={setPersonName}
+                onSubmitEditing={addPerson}
+                returnKeyType="done"
+                placeholder="동행인 이름"
+              />
+              <Pressable
+                onPress={addPerson}
+                style={[styles.homePersonAddButton,{backgroundColor:theme.accent}]}
+              >
+                <Text style={styles.homePersonAddButtonText}>추가</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.homeTripDivider}/>
+
+            <Pressable
+              onPress={() => requestTripDelete(state.activeTripId)}
+              style={[
+                styles.homeTripDeleteButton,
+                deleteTripConfirmId === state.activeTripId && styles.homeTripDeleteConfirm
+              ]}
+            >
+              <Text
+                style={[
+                  styles.homeTripDeleteText,
+                  deleteTripConfirmId === state.activeTripId && styles.homeTripDeleteConfirmText
+                ]}
+              >
+                {deleteTripConfirmId === state.activeTripId
+                  ? "한번 더 누르면 현재 여행이 삭제됩니다"
+                  : "🗑️ 현재 여행 삭제"}
+              </Text>
+            </Pressable>
           </Card>
 
           <View style={[styles.heroCard,{backgroundColor:theme.accent}]}>
@@ -941,76 +1090,8 @@ if (!activeTrip) return null;
         {tab==="manage" && <>
           <View style={styles.manageIntro}>
             <Text style={styles.manageTitle}>여행 관리</Text>
-            <Text style={styles.manageSubtitle}>여행 정보, 동행인, 준비물, 꾸미기와 백업을 한곳에서 관리해요.</Text>
+            <Text style={styles.manageSubtitle}>준비물, 꾸미기, 백업과 내 정보를 관리해요.</Text>
           </View>
-          <Pressable
-            onPress={() => requestTripDelete(state.activeTripId)}
-            style={[
-              styles.manageDeleteShortcut,
-              deleteTripConfirmId === state.activeTripId && styles.selectedTripDeleteConfirm
-            ]}
-          >
-            <Text
-              style={[
-                styles.manageDeleteShortcutText,
-                deleteTripConfirmId === state.activeTripId && styles.selectedTripDeleteConfirmText
-              ]}
-            >
-              {deleteTripConfirmId === state.activeTripId
-                ? "한번 더 누르면 현재 여행이 삭제됩니다"
-                : "🗑️ 현재 여행 삭제"}
-            </Text>
-          </Pressable>
-          <ManageGroup
-            title="🧭 여행 정보"
-            subtitle="여행 이름 · 날짜 · 예산"
-            open={openManageSection==="trip"}
-            onPress={()=>setOpenManageSection(openManageSection==="trip"?null:"trip")}
-            cardStyle={cardDecorStyle}
-          >
-            <Field label="여행 이름" value={activeTrip.name} onChangeText={v=>updateTrip(t=>({...t,name:v}))} />
-            <View style={styles.two}>
-              <View style={styles.flex}>
-                <Text style={styles.label}>시작일</Text>
-                <Pressable
-                  onPress={()=>setDatePickerMode("start")}
-                  style={[styles.dateSelectButton,{borderColor:theme.accentSoft}]}
-                >
-                  <Text style={styles.dateSelectIcon}>🗓️</Text>
-                  <Text style={[styles.dateSelectText,!activeTrip.start&&styles.datePlaceholder]}>
-                    {activeTrip.start || "시작일 선택"}
-                  </Text>
-                </Pressable>
-              </View>
-              <View style={styles.flex}>
-                <Text style={styles.label}>종료일</Text>
-                <Pressable
-                  onPress={()=>setDatePickerMode("end")}
-                  style={[styles.dateSelectButton,{borderColor:theme.accentSoft}]}
-                >
-                  <Text style={styles.dateSelectIcon}>🏁</Text>
-                  <Text style={[styles.dateSelectText,!activeTrip.end&&styles.datePlaceholder]}>
-                    {activeTrip.end || "종료일 선택"}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-            <Field label="총 예산(원)" value={activeTrip.budget?String(activeTrip.budget):""} onChangeText={v=>updateTrip(t=>({...t,budget:Number(v.replace(/[^0-9]/g,""))||0}))} keyboardType="numeric"/>
-          </ManageGroup>
-
-          <ManageGroup
-            title="👥 동행인"
-            subtitle="정산에 참여할 사람 관리"
-            open={openManageSection==="people"}
-            onPress={()=>setOpenManageSection(openManageSection==="people"?null:"people")}
-            cardStyle={cardDecorStyle}
-          >
-            <View style={styles.listRow}><Text style={styles.bold}>👤 나 · {state.profile.name}</Text><Text style={styles.meBadge}>기본 포함</Text></View>
-            {activeTrip.people.filter(p=>p.id!==state.profile.id).map(p=>(
-              <View key={p.id} style={styles.listRow}><Text>👤 {p.name}</Text><Pressable onPress={()=>removePerson(p.id)}><Text style={styles.danger}>삭제</Text></Pressable></View>
-            ))}
-            <View style={styles.row}><TextInput style={[styles.input,styles.flex]} value={personName} onChangeText={setPersonName} placeholder="동행인 이름"/><Primary text="추가" onPress={addPerson}/></View>
-          </ManageGroup>
           <ManageGroup
             title="✅ 준비 체크리스트"
             subtitle="준비물 체크와 진행률"
@@ -1197,47 +1278,56 @@ if (!activeTrip) return null;
             )}
 
             <Text style={styles.backupNote}>
-              ※ 영수증 사진 파일 자체는 아직 백업 대상이 아니며, 연결 정보만 보존돼요. 사진 파일 백업은 이후 버전에서 추가할 예정이에요.
+              ※ 프로필 사진은 백업에 포함돼요. 영수증 사진 파일 자체는 아직 백업 대상이 아니며, 연결 정보만 보존돼요.
             </Text>
           </ManageGroup>
 
           <ManageGroup
             title="👤 내 정보"
-            subtitle="기본 사용자 이름"
+            subtitle="내 이름 · 프로필 사진"
             open={openManageSection==="profile"}
             onPress={()=>setOpenManageSection(openManageSection==="profile"?null:"profile")}
             cardStyle={cardDecorStyle}
           >
-            <Field label="내 이름" value={state.profile.name} onChangeText={updateMyName} />
-          </ManageGroup>
-
-
-          <ManageGroup
-            title="⚠️ 여행 데이터 관리"
-            subtitle="여행 삭제 등 주의가 필요한 기능"
-            open={openManageSection==="danger"}
-            onPress={()=>setOpenManageSection(openManageSection==="danger"?null:"danger")}
-            cardStyle={cardDecorStyle}
-          >
-            <Text style={styles.muted}>선택한 여행의 전체 기록을 삭제할 수 있어요. 실수 방지를 위해 두 번 눌러야 삭제됩니다.</Text>
-            <Pressable
-              onPress={() => requestTripDelete(state.activeTripId)}
-              style={[
-                styles.selectedTripDelete,
-                deleteTripConfirmId === state.activeTripId && styles.selectedTripDeleteConfirm
-              ]}
-            >
-              <Text
-                style={[
-                  styles.selectedTripDeleteText,
-                  deleteTripConfirmId === state.activeTripId && styles.selectedTripDeleteConfirmText
-                ]}
+            <View style={styles.profileEditorRow}>
+              <Pressable
+                onPress={()=>pickProfilePhoto(state.profile.id)}
+                style={[styles.profileAvatarButton,{backgroundColor:theme.accentSoft}]}
               >
-                {deleteTripConfirmId === state.activeTripId
-                  ? "한번 더 누르면 이 여행 기록이 삭제됩니다"
-                  : "선택한 여행 삭제"}
-              </Text>
-            </Pressable>
+                {profilePhotos[state.profile.id] ? (
+                  <Image source={{uri:profilePhotos[state.profile.id]}} style={styles.profileAvatarImage}/>
+                ) : (
+                  <Text style={[styles.profileAvatarInitial,{color:theme.accent}]}>
+                    {(state.profile.name || "나").trim().slice(0,1)}
+                  </Text>
+                )}
+              </Pressable>
+
+              <View style={styles.flex}>
+                <Text style={styles.profilePhotoTitle}>프로필 사진</Text>
+                <Text style={styles.profilePhotoHint}>사진을 누르면 앨범에서 변경할 수 있어요.</Text>
+                <View style={styles.profilePhotoActions}>
+                  <Pressable
+                    onPress={()=>pickProfilePhoto(state.profile.id)}
+                    style={[styles.profilePhotoAction,{borderColor:theme.accent}]}
+                  >
+                    <Text style={[styles.profilePhotoActionText,{color:theme.accent}]}>
+                      {profilePhotos[state.profile.id] ? "사진 변경" : "사진 선택"}
+                    </Text>
+                  </Pressable>
+                  {profilePhotos[state.profile.id] && (
+                    <Pressable
+                      onPress={()=>removeProfilePhoto(state.profile.id)}
+                      style={styles.profilePhotoRemove}
+                    >
+                      <Text style={styles.profilePhotoRemoveText}>사진 삭제</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <Field label="내 이름" value={state.profile.name} onChangeText={updateMyName} />
           </ManageGroup>
         </>}
 
@@ -2154,22 +2244,6 @@ const styles=StyleSheet.create({
     justifyContent:"center"
   },
   todayAddText:{fontSize:11,fontWeight:"900"},
-  manageDeleteShortcut:{
-    minHeight:48,
-    marginBottom:13,
-    borderRadius:16,
-    borderWidth:1,
-    borderColor:"#F0C9CE",
-    backgroundColor:"#FFF5F6",
-    alignItems:"center",
-    justifyContent:"center",
-    paddingHorizontal:14
-  },
-  manageDeleteShortcutText:{
-    color:"#D94B5C",
-    fontSize:13,
-    fontWeight:"900"
-  },
   manageGroupHeader:{
     flexDirection:"row",
     alignItems:"center",
@@ -2210,6 +2284,198 @@ const styles=StyleSheet.create({
   },
   segmentTextActive:{
     color:"#FFFFFF"
+  },
+  homeTripDivider:{
+    height:StyleSheet.hairlineWidth,
+    backgroundColor:"#ECEEF6",
+    marginVertical:14
+  },
+  homeTripSectionHeader:{
+    flexDirection:"row",
+    alignItems:"center",
+    justifyContent:"space-between",
+    gap:10
+  },
+  homeTripSectionTitle:{
+    fontSize:14,
+    fontWeight:"900",
+    color:"#20223F"
+  },
+  homeTripActionHint:{
+    marginTop:2,
+    fontSize:10,
+    lineHeight:15,
+    color:"#8A8EAA"
+  },
+  homePeopleCount:{
+    paddingHorizontal:9,
+    paddingVertical:5,
+    borderRadius:999
+  },
+  homePeopleCountText:{
+    fontSize:10,
+    fontWeight:"900"
+  },
+  homePeopleList:{
+    marginTop:10,
+    gap:4
+  },
+  homePersonRow:{
+    minHeight:58,
+    flexDirection:"row",
+    alignItems:"center",
+    gap:10,
+    paddingVertical:7,
+    borderBottomWidth:StyleSheet.hairlineWidth,
+    borderBottomColor:"#ECEEF6"
+  },
+  avatarButton:{
+    width:44,
+    height:44,
+    borderRadius:22,
+    alignItems:"center",
+    justifyContent:"center",
+    overflow:"hidden"
+  },
+  avatarImage:{
+    width:"100%",
+    height:"100%"
+  },
+  avatarInitial:{
+    fontSize:17,
+    fontWeight:"900"
+  },
+  homePersonName:{
+    fontSize:13,
+    fontWeight:"900",
+    color:"#30334D"
+  },
+  homePersonPhotoHint:{
+    marginTop:2,
+    fontSize:10,
+    color:"#8A8EAA",
+    fontWeight:"700"
+  },
+  homePersonDeleteButton:{
+    minWidth:44,
+    minHeight:34,
+    borderRadius:11,
+    alignItems:"center",
+    justifyContent:"center",
+    backgroundColor:"#FFF2F4",
+    paddingHorizontal:9
+  },
+  homePersonDeleteText:{
+    color:"#D94B5C",
+    fontSize:10,
+    fontWeight:"900"
+  },
+  homePersonAddRow:{
+    flexDirection:"row",
+    alignItems:"center",
+    gap:8,
+    marginTop:10
+  },
+  homePersonAddButton:{
+    minWidth:64,
+    minHeight:48,
+    borderRadius:14,
+    alignItems:"center",
+    justifyContent:"center",
+    paddingHorizontal:12
+  },
+  homePersonAddButtonText:{
+    color:"#FFFFFF",
+    fontSize:12,
+    fontWeight:"900"
+  },
+  homeTripDeleteButton:{
+    minHeight:42,
+    borderRadius:13,
+    borderWidth:1,
+    borderColor:"#F0C9CE",
+    backgroundColor:"#FFF6F7",
+    alignItems:"center",
+    justifyContent:"center",
+    paddingHorizontal:12
+  },
+  homeTripDeleteConfirm:{
+    backgroundColor:"#FFE8EB",
+    borderColor:"#E15467"
+  },
+  homeTripDeleteText:{
+    color:"#D94B5C",
+    fontSize:11,
+    fontWeight:"900"
+  },
+  homeTripDeleteConfirmText:{
+    color:"#C73549",
+    fontSize:11,
+    fontWeight:"900"
+  },
+  profileEditorRow:{
+    flexDirection:"row",
+    alignItems:"center",
+    gap:14,
+    marginBottom:8
+  },
+  profileAvatarButton:{
+    width:76,
+    height:76,
+    borderRadius:38,
+    alignItems:"center",
+    justifyContent:"center",
+    overflow:"hidden"
+  },
+  profileAvatarImage:{
+    width:"100%",
+    height:"100%"
+  },
+  profileAvatarInitial:{
+    fontSize:28,
+    fontWeight:"900"
+  },
+  profilePhotoTitle:{
+    fontSize:14,
+    fontWeight:"900",
+    color:"#20223F"
+  },
+  profilePhotoHint:{
+    marginTop:3,
+    color:"#8A8EAA",
+    fontSize:10,
+    lineHeight:15
+  },
+  profilePhotoActions:{
+    flexDirection:"row",
+    alignItems:"center",
+    gap:8,
+    marginTop:9
+  },
+  profilePhotoAction:{
+    minHeight:34,
+    borderWidth:1,
+    borderRadius:11,
+    alignItems:"center",
+    justifyContent:"center",
+    paddingHorizontal:11
+  },
+  profilePhotoActionText:{
+    fontSize:10,
+    fontWeight:"900"
+  },
+  profilePhotoRemove:{
+    minHeight:34,
+    borderRadius:11,
+    alignItems:"center",
+    justifyContent:"center",
+    paddingHorizontal:10,
+    backgroundColor:"#FFF2F4"
+  },
+  profilePhotoRemoveText:{
+    color:"#D94B5C",
+    fontSize:10,
+    fontWeight:"900"
   },
   homeExpenseRow:{
     minHeight:56,

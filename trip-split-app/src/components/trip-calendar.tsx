@@ -204,20 +204,20 @@ export default function TripCalendar({
         <View style={[styles.bookingSummary,{backgroundColor:accentSoft}]}>
           <View style={styles.bookingDate}>
             <Text style={[styles.bookingLabel,{color:accent}]}>출발</Text>
-            <Text style={styles.bookingValue}>{startDate.slice(5).replace("-","/")}</Text>
+            <Text style={styles.bookingValue}>{startDate!.slice(5).replace("-","/")}</Text>
           </View>
           <View style={styles.bookingLine}>
             <View style={[styles.bookingDot,{backgroundColor:accent}]}/>
             <View style={[styles.bookingTrack,{backgroundColor:accent}]}/>
             <Text style={styles.bookingNights}>
-              {Math.max(0,dayDiff(startDate,endDate) ?? 0)}박
+              {Math.max(0,dayDiff(startDate!,endDate!) ?? 0)}박
             </Text>
             <View style={[styles.bookingTrack,{backgroundColor:accent}]}/>
             <View style={[styles.bookingDot,{backgroundColor:accent}]}/>
           </View>
           <View style={[styles.bookingDate,{alignItems:"flex-end"}]}>
             <Text style={[styles.bookingLabel,{color:accent}]}>귀국</Text>
-            <Text style={styles.bookingValue}>{endDate.slice(5).replace("-","/")}</Text>
+            <Text style={styles.bookingValue}>{endDate!.slice(5).replace("-","/")}</Text>
           </View>
         </View>
       )}
@@ -315,7 +315,7 @@ export default function TripCalendar({
         <Text style={styles.sectionTitle}>오늘의 일정</Text>
         {Boolean(onAddPlan) && (
           <Pressable
-            onPress={()=>onAddPlan(selectedDate)}
+            onPress={()=>onAddPlan?.(selectedDate)}
             style={[styles.smallAction,{backgroundColor:accentSoft}]}
           >
             <Text style={[styles.smallActionText,{color:accent}]}>＋ 일정 추가</Text>
@@ -350,7 +350,7 @@ export default function TripCalendar({
               {!!plan.detail && <Text style={styles.planDetail}>{plan.detail}</Text>}
             </View>
             {Boolean(onDeletePlan) && (
-              <Pressable onPress={()=>onDeletePlan(plan.id)} style={styles.planDelete}>
+              <Pressable onPress={()=>onDeletePlan?.(plan.id)} style={styles.planDelete}>
                 <Text style={styles.planDeleteText}>×</Text>
               </Pressable>
             )}
