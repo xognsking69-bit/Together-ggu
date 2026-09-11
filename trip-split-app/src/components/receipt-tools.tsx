@@ -1,12 +1,11 @@
 import React, { useState } from "react";
 import {
-  Alert,
-  Image,
+  View,
+  Text,
   Pressable,
   StyleSheet,
-  Text,
-  View,
-} from "react-native";
+  Platform,
+  Image,} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
 export type ReceiptResult = {
