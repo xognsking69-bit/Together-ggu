@@ -651,7 +651,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Trip Split",
-      version: "V2.7.2",
+      version: "V2.8",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -762,7 +762,7 @@ if (!activeTrip) return null;
           <Text style={[styles.decorateShortcutText,{color:theme.accent}]}>🎨 꾸미기</Text>
         </Pressable>
         <View style={[styles.versionPill,{backgroundColor:theme.accentSoft}]}>
-          <Text style={[styles.version,{color:theme.accent}]}>V2.7.2</Text>
+          <Text style={[styles.version,{color:theme.accent}]}>V2.8</Text>
         </View>
       </View>
 

@@ -14,7 +14,7 @@ export type ReceiptResult = {
   date?: string;
   amount?: number;
   currency?: "KRW" | "JPY" | "USD" | "EUR";
-  category?: string;
+  category?: "식비" | "카페" | "교통" | "숙박" | "관광" | "쇼핑" | "기타";
   confidence?: number;
 };
 
@@ -26,6 +26,45 @@ type Props = {
   onDetected: (result: ReceiptResult) => void;
 };
 
+const ALLOWED_CURRENCIES = ["KRW", "JPY", "USD", "EUR"] as const;
+const ALLOWED_CATEGORIES = ["식비", "카페", "교통", "숙박", "관광", "쇼핑", "기타"] as const;
+
+function normalizeResult(raw: any): ReceiptResult {
+  const source = raw?.data && typeof raw.data === "object" ? raw.data : raw;
+
+  const merchant =
+    typeof source?.merchant === "string" && source.merchant.trim()
+      ? source.merchant.trim()
+      : undefined;
+
+  const date =
+    typeof source?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(source.date)
+      ? source.date
+      : undefined;
+
+  const amountNumber = Number(source?.amount);
+  const amount =
+    Number.isFinite(amountNumber) && amountNumber > 0
+      ? amountNumber
+      : undefined;
+
+  const currency = ALLOWED_CURRENCIES.includes(source?.currency)
+    ? source.currency
+    : undefined;
+
+  const category = ALLOWED_CATEGORIES.includes(source?.category)
+    ? source.category
+    : undefined;
+
+  const confidenceNumber = Number(source?.confidence);
+  const confidence =
+    Number.isFinite(confidenceNumber)
+      ? Math.max(0, Math.min(1, confidenceNumber))
+      : undefined;
+
+  return { merchant, date, amount, currency, category, confidence };
+}
+
 export default function ReceiptTools({
   accent = "#5C5CE2",
   accentSoft = "#EEEEFF",
@@ -36,6 +75,12 @@ export default function ReceiptTools({
   const [analyzing, setAnalyzing] = useState(false);
   const [lastResult, setLastResult] = useState<ReceiptResult | null>(null);
 
+  function usePickedImage(uri?: string) {
+    if (!uri) return;
+    onReceiptUriChange(uri);
+    setLastResult(null);
+  }
+
   async function takePhoto() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
@@ -45,14 +90,11 @@ export default function ReceiptTools({
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
-      quality: 0.85,
+      quality: 0.72,
       allowsEditing: false,
     });
 
-    if (!result.canceled && result.assets[0]?.uri) {
-      onReceiptUriChange(result.assets[0].uri);
-      setLastResult(null);
-    }
+    if (!result.canceled) usePickedImage(result.assets[0]?.uri);
   }
 
   async function pickPhoto() {
@@ -64,14 +106,11 @@ export default function ReceiptTools({
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 0.85,
+      quality: 0.72,
       allowsEditing: false,
     });
 
-    if (!result.canceled && result.assets[0]?.uri) {
-      onReceiptUriChange(result.assets[0].uri);
-      setLastResult(null);
-    }
+    if (!result.canceled) usePickedImage(result.assets[0]?.uri);
   }
 
   async function analyzeReceipt() {
@@ -80,8 +119,8 @@ export default function ReceiptTools({
     const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
     if (!endpoint) {
       Alert.alert(
-        "AI 연결 준비 완료",
-        "영수증 촬영/첨부 기능은 사용할 수 있어요. 자동 분석은 나중에 서버 주소와 API Secret을 연결하면 바로 켜집니다."
+        "AI 서버 주소가 필요해요",
+        "Cloudflare Worker 주소를 EXPO_PUBLIC_RECEIPT_API_URL에 설정하면 영수증 AI가 작동합니다."
       );
       return;
     }
@@ -89,38 +128,58 @@ export default function ReceiptTools({
     try {
       setAnalyzing(true);
 
-      const form = new FormData();
-      form.append("receipt", {
-        uri: receiptUri,
-        name: "receipt.jpg",
-        type: "image/jpeg",
-      } as any);
+const form = new FormData();
+
+if (Platform.OS === "web") {
+  const imageResponse = await fetch(receiptUri);
+  const imageBlob = await imageResponse.blob();
+
+  form.append("receipt", imageBlob, "receipt.jpg");
+} else {
+  form.append(
+    "receipt",
+    {
+      uri: receiptUri,
+      name: "receipt.jpg",
+      type: "image/jpeg",
+    } as any
+  );
+}
 
       const response = await fetch(endpoint, {
         method: "POST",
         body: form,
       });
 
+      const raw = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const message =
+          typeof raw?.error === "string"
+            ? raw.error
+            : `서버 오류 (${response.status})`;
+        throw new Error(message);
       }
 
-      const raw = await response.json();
-      const parsed: ReceiptResult = {
-        merchant: typeof raw.merchant === "string" ? raw.merchant : undefined,
-        date: typeof raw.date === "string" ? raw.date : undefined,
-        amount: Number.isFinite(Number(raw.amount)) ? Number(raw.amount) : undefined,
-        currency: ["KRW","JPY","USD","EUR"].includes(raw.currency) ? raw.currency : undefined,
-        category: typeof raw.category === "string" ? raw.category : undefined,
-        confidence: Number.isFinite(Number(raw.confidence)) ? Number(raw.confidence) : undefined,
-      };
+      const parsed = normalizeResult(raw);
+
+      if (
+        !parsed.merchant &&
+        !parsed.date &&
+        parsed.amount == null &&
+        !parsed.currency &&
+        !parsed.category
+      ) {
+        throw new Error("영수증 정보를 충분히 읽지 못했어요.");
+      }
 
       setLastResult(parsed);
       onDetected(parsed);
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert(
         "영수증 분석 실패",
-        "사진 상태나 네트워크를 확인해주세요. AI 결과는 항상 저장 전에 직접 확인하는 방식으로 사용할 거예요."
+        error?.message ||
+          "사진 상태나 네트워크를 확인해주세요. AI 결과는 저장 전에 직접 확인해주세요."
       );
     } finally {
       setAnalyzing(false);
@@ -130,11 +189,14 @@ export default function ReceiptTools({
   return (
     <View style={styles.card}>
       <View style={styles.titleRow}>
-        <View>
-          <Text style={styles.title}>🧾 영수증 자동 입력</Text>
+        <View style={styles.flex}>
+          <Text style={styles.title}>🧾 영수증 AI 자동 입력</Text>
           <Text style={styles.helper}>
-            촬영하거나 사진을 골라두면 AI가 가게명·날짜·금액·통화를 자동으로 채울 수 있어요.
+            영수증을 촬영하거나 사진을 고르면 가게명·날짜·총액·통화·카테고리를 자동으로 채워요.
           </Text>
+        </View>
+        <View style={[styles.aiBadge,{backgroundColor:accentSoft}]}>
+          <Text style={[styles.aiBadgeText,{color:accent}]}>AI</Text>
         </View>
       </View>
 
@@ -177,18 +239,33 @@ export default function ReceiptTools({
         ]}
       >
         <Text style={styles.analyzeText}>
-          {analyzing ? "AI가 확인하는 중..." : "✨ AI로 영수증 자동 확인"}
+          {analyzing ? "AI가 영수증을 읽는 중..." : "✨ AI로 자동 입력"}
         </Text>
       </Pressable>
 
       {lastResult && (
         <View style={[styles.resultBox,{backgroundColor:accentSoft}]}>
-          <Text style={[styles.resultTitle,{color:accent}]}>자동 입력 결과</Text>
+          <View style={styles.resultHeader}>
+            <Text style={[styles.resultTitle,{color:accent}]}>AI 인식 결과</Text>
+            {lastResult.confidence != null && (
+              <Text style={styles.confidence}>
+                신뢰도 {Math.round(lastResult.confidence * 100)}%
+              </Text>
+            )}
+          </View>
           <Text style={styles.resultText}>
-            {lastResult.merchant || "가게명 미확인"} · {lastResult.amount ?? "금액 미확인"} {lastResult.currency || ""}
+            {lastResult.merchant || "가게명 미확인"}
+          </Text>
+          <Text style={styles.resultSub}>
+            {lastResult.date || "날짜 미확인"} ·{" "}
+            {lastResult.amount != null
+              ? lastResult.amount.toLocaleString()
+              : "금액 미확인"}{" "}
+            {lastResult.currency || ""}
+            {lastResult.category ? ` · ${lastResult.category}` : ""}
           </Text>
           <Text style={styles.confirmText}>
-            AI가 틀릴 수 있으니 아래 입력칸을 확인한 뒤 저장해주세요.
+            아래 지출 입력칸에 자동 반영됐어요. 저장하기 전에 금액과 날짜를 한 번 확인해주세요.
           </Text>
         </View>
       )}
@@ -208,9 +285,19 @@ const styles = StyleSheet.create({
     shadowRadius:14,
     elevation:2
   },
-  titleRow:{flexDirection:"row",justifyContent:"space-between"},
+  flex:{flex:1},
+  titleRow:{flexDirection:"row",justifyContent:"space-between",gap:10},
   title:{fontSize:18,fontWeight:"900",color:"#20223F",letterSpacing:-0.3},
   helper:{fontSize:12,color:"#8589A5",lineHeight:18,marginTop:5,maxWidth:320},
+  aiBadge:{
+    minWidth:34,
+    height:26,
+    borderRadius:13,
+    alignItems:"center",
+    justifyContent:"center",
+    paddingHorizontal:8
+  },
+  aiBadgeText:{fontSize:11,fontWeight:"900"},
   emptyPreview:{
     height:150,
     marginTop:14,
@@ -242,7 +329,10 @@ const styles = StyleSheet.create({
   analyzeText:{color:"#FFFFFF",fontWeight:"900"},
   disabled:{opacity:0.35},
   resultBox:{marginTop:12,borderRadius:15,padding:12},
+  resultHeader:{flexDirection:"row",justifyContent:"space-between",gap:8},
   resultTitle:{fontSize:12,fontWeight:"900"},
-  resultText:{fontSize:13,fontWeight:"800",color:"#20223F",marginTop:4},
-  confirmText:{fontSize:11,color:"#777C9D",marginTop:5,lineHeight:16}
+  confidence:{fontSize:10,fontWeight:"800",color:"#777C9D"},
+  resultText:{fontSize:14,fontWeight:"900",color:"#20223F",marginTop:6},
+  resultSub:{fontSize:12,fontWeight:"700",color:"#4C506B",marginTop:3},
+  confirmText:{fontSize:11,color:"#777C9D",marginTop:7,lineHeight:16}
 });
