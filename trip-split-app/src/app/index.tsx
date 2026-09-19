@@ -159,6 +159,7 @@ const PLAN_KEY = "trip-split-plans-v1";
 const PROFILE_PHOTO_KEY = "trip-split-profile-photos-v1";
 const SHARED_ROOM_KEY = "trip-split-shared-rooms-v1";
 const IDENTITY_KEY = "trip-split-device-identity-v1";
+const SETTLEMENT_DONE_KEY = "trip-split-settlement-done-v1";
 
 let stableIdentityPromise: Promise<string> | null = null;
 function getStableIdentityId() {
@@ -324,6 +325,8 @@ function IndexContent() {
   const [sharedRoomsReady, setSharedRoomsReady] = useState(false);
   const [sharedStatus, setSharedStatus] = useState<"idle"|"creating"|"syncing"|"synced"|"error">("idle");
   const [sharedStatusText, setSharedStatusText] = useState("");
+  const [settlementDoneByTrip, setSettlementDoneByTrip] = useState<Record<string,Record<string,boolean>>>({});
+  const [settlementDoneReady, setSettlementDoneReady] = useState(false);
   const applyingRemoteRef = useRef(false);
   const lastSharedFingerprintRef = useRef<Record<string,string>>({});
   const sharedRoomsRef = useRef<Record<string, SharedRoomMeta>>({});
@@ -408,6 +411,22 @@ function IndexContent() {
     if (!profilePhotosReady) return;
     AsyncStorage.setItem(PROFILE_PHOTO_KEY, JSON.stringify(profilePhotos)).catch(() => {});
   }, [profilePhotos, profilePhotosReady]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SETTLEMENT_DONE_KEY)
+      .then(value => {
+        if (!value) return;
+        const parsed = JSON.parse(value);
+        if (parsed && typeof parsed === "object") setSettlementDoneByTrip(parsed);
+      })
+      .catch(() => {})
+      .finally(() => setSettlementDoneReady(true));
+  }, []);
+
+  useEffect(() => {
+    if (!settlementDoneReady) return;
+    AsyncStorage.setItem(SETTLEMENT_DONE_KEY, JSON.stringify(settlementDoneByTrip)).catch(() => {});
+  }, [settlementDoneByTrip, settlementDoneReady]);
 
   useEffect(() => {
     Promise.all([AsyncStorage.getItem(SHARED_ROOM_KEY), getStableIdentityId()])
@@ -578,6 +597,14 @@ function IndexContent() {
   const dailyAverage = total / Math.max(1,analysisDayCount);
   const projectedSpend = tripTotalDays>0 && elapsedTripDays>0 ? dailyAverage*tripTotalDays : total;
   const perPersonAverage = total / Math.max(1,activeTrip.people.length);
+  const transferKey = (t:{from:string;to:string;amount:number}) =>
+    `${t.from}|${t.to}|${Math.round(t.amount)}`;
+  const completedTransfers = settlementDoneByTrip[activeTrip.id] || {};
+  const settlementDoneCount = transfers.filter(t=>completedTransfers[transferKey(t)]).length;
+  const settlementRemainingCount = Math.max(0, transfers.length-settlementDoneCount);
+  const settlementProgress = transfers.length ? Math.round(settlementDoneCount/transfers.length*100) : 100;
+  const tripSummaryTopCategory = categoryAnalytics[0]?.category || "지출 없음";
+  const tripSummaryTopCategoryAmount = categoryAnalytics[0]?.amount || 0;
 
   useEffect(() => {
     setBudgetDraft(activeTrip.budget ? String(Math.round(activeTrip.budget)) : "");
@@ -1022,7 +1049,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Trip Split",
-      version: "V3.8.0",
+      version: "V3.9.0",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -1452,6 +1479,24 @@ if (!activeTrip) return null;
     }
   }
 
+  function toggleSettlementDone(t:{from:string;to:string;amount:number}) {
+    const key = transferKey(t);
+    setSettlementDoneByTrip(prev => ({
+      ...prev,
+      [activeTrip.id]: {
+        ...(prev[activeTrip.id] || {}),
+        [key]: !(prev[activeTrip.id] || {})[key],
+      }
+    }));
+  }
+
+  function resetSettlementDone() {
+    Alert.alert("정산 완료 기록 초기화", "이 여행의 송금 완료 체크를 모두 해제할까요?", [
+      {text:"취소",style:"cancel"},
+      {text:"초기화",style:"destructive",onPress:()=>setSettlementDoneByTrip(prev=>({...prev,[activeTrip.id]:{}}))}
+    ]);
+  }
+
   async function shareSettlement() {
     const names = Object.fromEntries(activeTrip.people.map(p=>[p.id,p.name]));
     const lines = transfers.length
@@ -1481,7 +1526,7 @@ if (!activeTrip) return null;
           </View>
           <View style={styles.appHeaderActions}>
             <View style={[styles.versionPill,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.32):"transparent"}]}>
-              <Text style={[styles.version,{color:theme.accent}]}>V3.8.0</Text>
+              <Text style={[styles.version,{color:theme.accent}]}>V3.9.0</Text>
             </View>
           </View>
         </View>
@@ -2062,7 +2107,7 @@ if (!activeTrip) return null;
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
               <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
-            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.8.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
+            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.9.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
 
           <ManageGroup
@@ -2254,20 +2299,67 @@ if (!activeTrip) return null;
         </>}
 
         {tab==="settle" && <>
+          <Card cardStyle={cardDecorStyle} title="🧾 여행 종료 요약">
+            <View style={styles.budgetSummaryRow}>
+              <View style={[styles.budgetSummaryBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
+                <Text style={[styles.analyticsLabel,isDark&&{color:appearanceColors.muted}]}>총 지출</Text>
+                <Text style={[styles.analyticsBig,isDark&&{color:appearanceColors.text}]}>{won(total)}</Text>
+              </View>
+              <View style={[styles.budgetSummaryBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
+                <Text style={[styles.analyticsLabel,isDark&&{color:appearanceColors.muted}]}>1인 평균</Text>
+                <Text style={[styles.analyticsBig,isDark&&{color:appearanceColors.text}]}>{won(perPersonAverage)}</Text>
+              </View>
+            </View>
+            <View style={styles.analyticsMiniGrid}>
+              <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
+                <Text style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>여행 기간</Text>
+                <Text style={[styles.analyticsMiniValue,isDark&&{color:appearanceColors.text}]}>{tripTotalDays ? `${tripTotalDays}일` : "미설정"}</Text>
+              </View>
+              <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
+                <Text style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>지출 건수</Text>
+                <Text style={[styles.analyticsMiniValue,isDark&&{color:appearanceColors.text}]}>{activeTrip.expenses.length}건</Text>
+              </View>
+              <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
+                <Text style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>가장 큰 항목</Text>
+                <Text style={[styles.analyticsMiniValue,isDark&&{color:appearanceColors.text}]}>{tripSummaryTopCategory}</Text>
+              </View>
+            </View>
+            {tripSummaryTopCategoryAmount>0 && <Text style={[styles.analyticsFootnote,isDark&&{color:appearanceColors.muted}]}>가장 많이 쓴 카테고리 · {tripSummaryTopCategory} {won(tripSummaryTopCategoryAmount)}</Text>}
+          </Card>
+
           <Card cardStyle={cardDecorStyle} title="사람별 정산">
             {activeTrip.people.map(p=>{
               const b=balances[p.id]||{paid:0,owed:0,net:0};
               return <View key={p.id} style={styles.listRow}><View><Text style={styles.bold}>{p.id===state.profile.id?`나 · ${p.name}`:p.name}</Text><Text style={styles.muted}>결제 {won(b.paid)} · 부담 {won(b.owed)}</Text></View><Text style={b.net>0?styles.good:b.net<0?styles.danger:styles.muted}>{b.net>0?`받을 돈 ${won(b.net)}`:b.net<0?`보낼 돈 ${won(-b.net)}`:"정산 완료"}</Text></View>
             })}
           </Card>
-          <Card cardStyle={cardDecorStyle} title="최종 송금">
-            {!transfers.length && <Text style={styles.muted}>현재 정산할 금액이 없습니다.</Text>}
+
+          <Card cardStyle={cardDecorStyle} title="💸 최종 송금 · 완료 체크">
+            <View style={styles.analyticsProgressHeader}>
+              <Text style={[styles.analyticsSectionTitle,isDark&&{color:appearanceColors.text}]}>
+                {transfers.length ? `${settlementDoneCount}/${transfers.length}건 완료` : "정산할 금액 없음"}
+              </Text>
+              <Text style={[styles.analyticsPercent,{color:theme.accent}]}>{settlementProgress}%</Text>
+            </View>
+            <View style={[styles.analyticsTrack,{backgroundColor:isDark?appearanceColors.surface2:"#EEF0F6"}]}>
+              <View style={[styles.analyticsFill,{width:`${settlementProgress}%`,backgroundColor:theme.accent}]}/>
+            </View>
+            {!transfers.length && <Text style={styles.muted}>모든 금액이 이미 맞아요.</Text>}
             {transfers.map((t,i)=>{
               const f=activeTrip.people.find(p=>p.id===t.from)?.name||"?";
               const to=activeTrip.people.find(p=>p.id===t.to)?.name||"?";
-              return <View key={i} style={styles.listRow}><Text><Text style={styles.bold}>{f}</Text>{" → "}<Text style={styles.bold}>{to}</Text></Text><Text style={styles.bold}>{won(t.amount)}</Text></View>
+              const done=Boolean(completedTransfers[transferKey(t)]);
+              return <Pressable key={transferKey(t)} onPress={()=>toggleSettlementDone(t)} style={[styles.listRow,done&&{opacity:0.55}]}>
+                <View style={{flex:1,paddingRight:8}}>
+                  <Text><Text style={styles.bold}>{done?"✓ ":"○ "}{f}</Text>{" → "}<Text style={styles.bold}>{to}</Text></Text>
+                  <Text style={styles.muted}>{done?"송금 완료":"눌러서 완료 처리"}</Text>
+                </View>
+                <Text style={[styles.bold,done&&{textDecorationLine:"line-through"}]}>{won(t.amount)}</Text>
+              </Pressable>
             })}
+            {transfers.length>0 && settlementRemainingCount===0 && <Text style={[styles.good,{marginTop:8,fontWeight:"900"}]}>🎉 이 여행의 정산이 모두 끝났어요.</Text>}
             <Primary text="정산 결과 공유" onPress={shareSettlement} full/>
+            {settlementDoneCount>0 && <Pressable onPress={resetSettlementDone} style={{alignSelf:"center",padding:10}}><Text style={styles.muted}>완료 체크 초기화</Text></Pressable>}
           </Card>
         </>}
         </Animated.View>
