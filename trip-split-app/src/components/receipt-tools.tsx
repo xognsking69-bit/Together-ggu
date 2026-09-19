@@ -5,7 +5,9 @@ import {
   Pressable,
   StyleSheet,
   Platform,
-  Image,} from "react-native";
+  Image,
+  Alert,
+} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
 export type ReceiptResult = {
