@@ -20,7 +20,6 @@ import * as Linking from "expo-linking";
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = "V3.8.1";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -200,16 +199,11 @@ function remapTripPersonId(trip:Trip, fromId:string, toId:string):Trip {
 
 function applyStableIdentity(app:AppState, identityId:string):AppState {
   const oldId = app.profile?.id || ME_ID;
-  if (!identityId) return app;
-  const profile = {...app.profile,id:identityId};
+  if (!identityId || oldId === identityId) return app;
   return {
     ...app,
-    profile,
-    trips:app.trips.map(t=>{
-      const remapped = remapTripPersonId(t,oldId,identityId);
-      if (remapped.people.some(p=>p.id===identityId)) return remapped;
-      return {...remapped,people:[{id:identityId,name:profile.name || "나"},...remapped.people]};
-    }),
+    profile:{...app.profile,id:identityId},
+    trips:app.trips.map(t=>remapTripPersonId(t,oldId,identityId)),
   };
 }
 const SHARED_API_URL = (process.env.EXPO_PUBLIC_SHARED_API_URL || "https://trip-split-shared-api.xognsking69.workers.dev").replace(/\/$/, "");
@@ -399,16 +393,11 @@ function IndexContent() {
   }, [plansByTrip]);
 
   useEffect(() => {
-    Promise.all([AsyncStorage.getItem(PROFILE_PHOTO_KEY),getStableIdentityId()])
-      .then(([value,identityId]) => {
+    AsyncStorage.getItem(PROFILE_PHOTO_KEY)
+      .then(value => {
         if (value) {
           const parsed = JSON.parse(value);
-          if (parsed && typeof parsed === "object") {
-            const migrated = {...parsed};
-            if (migrated[ME_ID] && !migrated[identityId]) migrated[identityId] = migrated[ME_ID];
-            if (identityId !== ME_ID) delete migrated[ME_ID];
-            setProfilePhotos(migrated);
-          }
+          if (parsed && typeof parsed === "object") setProfilePhotos(parsed);
         }
       })
       .catch(() => {})
@@ -1033,7 +1022,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Trip Split",
-      version: APP_VERSION,
+      version: "V3.8.0",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -1089,10 +1078,7 @@ if (!activeTrip) return null;
           style:"destructive",
           onPress: async () => {
             try {
-              const identityId = await getStableIdentityId();
-              const migratedState = migrate(restored);
-              const restoredProfileId = migratedState.profile?.id || ME_ID;
-              const next = applyStableIdentity(migratedState, identityId);
+              const next = migrate(restored);
               setState(next);
 
               if (parsed?.plansByTrip && typeof parsed.plansByTrip === "object") {
@@ -1100,12 +1086,7 @@ if (!activeTrip) return null;
               }
 
               if (parsed?.profilePhotos && typeof parsed.profilePhotos === "object") {
-                const migratedPhotos = {...parsed.profilePhotos};
-                if (migratedPhotos[restoredProfileId] && !migratedPhotos[identityId]) {
-                  migratedPhotos[identityId] = migratedPhotos[restoredProfileId];
-                }
-                if (restoredProfileId !== identityId) delete migratedPhotos[restoredProfileId];
-                setProfilePhotos(migratedPhotos);
+                setProfilePhotos(parsed.profilePhotos);
               }
 
               const appearance = parsed?.appearance;
@@ -1419,19 +1400,16 @@ if (!activeTrip) return null;
         if (!invite?.code || !invite?.token) throw new Error("초대코드가 올바르지 않아요.");
         const data=await sharedApi("/shared/pull",{code:invite.code,token:invite.token});
         if (!data?.trip || !Array.isArray(data.trip.people) || !Array.isArray(data.trip.expenses)) throw new Error("공동 여행 데이터를 불러오지 못했어요.");
-        const localTripId=makeId();
-        const remoteTrip:Trip={...data.trip,id:localTripId,name:data.trip.name || invite.name || "공동 여행"};
-        const imported:Trip=remoteTrip.people.some(p=>p.id===state.profile.id)
-          ? remoteTrip
-          : {...remoteTrip,people:[...remoteTrip.people,{id:state.profile.id,name:state.profile.name || "나"}]};
+        const imported:Trip={...data.trip,id:makeId(),name:data.trip.name || invite.name || "공동 여행"};
         const plans:Array<TripPlan>=Array.isArray(data.plans)?data.plans:[];
-        const meta:SharedRoomMeta={code:String(invite.code),token:String(invite.token),revision:Number(data.revision||1),lastSyncedAt:new Date().toISOString(),pendingSync:false,baseSnapshot:{trip:remoteTrip,plans},conflictCount:0};
-        lastSharedFingerprintRef.current[imported.id]=sharedFingerprint(remoteTrip,plans);
+        const meta:SharedRoomMeta={code:String(invite.code),token:String(invite.token),revision:Number(data.revision||1),lastSyncedAt:new Date().toISOString(),pendingSync:false,baseSnapshot:{trip:{...imported},plans},conflictCount:0};
+        applyingRemoteRef.current=true;
+        lastSharedFingerprintRef.current[imported.id]=sharedFingerprint(imported,plans);
         setState(prev=>({...prev,trips:[...prev.trips,imported],activeTripId:imported.id}));
         setPlansByTrip(prev=>({...prev,[imported.id]:plans}));
         setSharedRooms(prev=>({...prev,[imported.id]:meta}));
         setParticipants(imported.people.map(p=>p.id));
-        setPayerId(state.profile.id);
+        setPayerId(imported.people[0]?.id || state.profile.id);
         setDate(imported.start || today());
         setSharedInviteText("");
         setTab("home");
@@ -1456,14 +1434,11 @@ if (!activeTrip) return null;
       const encoded = raw.slice(at + prefix.length).trim();
       const payload = JSON.parse(decodeURIComponent(encoded));
       if (!payload?.trip || !Array.isArray(payload.trip.people) || !Array.isArray(payload.trip.expenses)) throw new Error("invalid");
-      const copiedTrip:Trip = {
+      const imported:Trip = {
         ...payload.trip,
         id: makeId(),
         name: `${payload.trip.name || "공동 여행"} · 초대`,
       };
-      const imported:Trip = copiedTrip.people.some(p=>p.id===state.profile.id)
-        ? copiedTrip
-        : {...copiedTrip,people:[...copiedTrip.people,{id:state.profile.id,name:state.profile.name || "나"}]};
       setState(prev => ({...prev, trips:[...prev.trips, imported], activeTripId:imported.id}));
       if (Array.isArray(payload.plans)) setPlansByTrip(prev => ({...prev,[imported.id]:payload.plans.map((plan:TripPlan)=>({...plan,id:makeId()}))}));
       setParticipants(imported.people.map(p=>p.id));
@@ -1506,7 +1481,7 @@ if (!activeTrip) return null;
           </View>
           <View style={styles.appHeaderActions}>
             <View style={[styles.versionPill,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.32):"transparent"}]}>
-              <Text style={[styles.version,{color:theme.accent}]}>{APP_VERSION}</Text>
+              <Text style={[styles.version,{color:theme.accent}]}>V3.8.0</Text>
             </View>
           </View>
         </View>
@@ -2087,7 +2062,7 @@ if (!activeTrip) return null;
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
               <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
-            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>{APP_VERSION} · 초대 참가자 자동 포함 + 기기별 사용자 구분 + 오프라인 변경 보관</Text>
+            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.8.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
 
           <ManageGroup
