@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Animated, Easing, Image, Modal, SafeAreaView, ScrollView, Share,
-  StyleSheet, useWindowDimensions, View
+  StyleSheet, useWindowDimensions, View, Platform
 } from "react-native";
 
 import TripCalendar, { type TripPlan } from "../components/trip-calendar";
@@ -16,7 +16,18 @@ import { SmoothText as Text, SmoothTextInput as TextInput } from "../components/
 import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../components/appearance-context";
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 
+
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 
 const Pressable = SmoothPressable;
@@ -156,6 +167,7 @@ type BackgroundStyleId = "theme" | "white" | "cream";
 const DECOR_KEY = "trip-split-decor-v1";
 
 const PLAN_KEY = "trip-split-plans-v1";
+const PLAN_NOTIFICATION_IDS_KEY = "trip-split-plan-notification-ids-v1";
 const PROFILE_PHOTO_KEY = "trip-split-profile-photos-v1";
 const SHARED_ROOM_KEY = "trip-split-shared-rooms-v1";
 const IDENTITY_KEY = "trip-split-device-identity-v1";
@@ -309,6 +321,7 @@ function IndexContent() {
   const [planTime, setPlanTime] = useState("");
   const [planDetail, setPlanDetail] = useState("");
   const [planLocation, setPlanLocation] = useState("");
+  const [planReminder, setPlanReminder] = useState(true);
   const [checkItemText, setCheckItemText] = useState("");
   const [datePickerMode, setDatePickerMode] = useState<"expense" | "start" | "end" | "newStart" | "newEnd" | null>(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
@@ -686,6 +699,7 @@ if (!activeTrip) return null;
   }
 
   function deleteTripNow(id:string) {
+    void cancelTripReminders(id);
     const target = state.trips.find(t => t.id === id);
     if (!target) return;
 
@@ -963,6 +977,8 @@ if (!activeTrip) return null;
     setPlanTitle("");
     setPlanTime("");
     setPlanDetail("");
+    setPlanLocation("");
+    setPlanReminder(true);
   }
 
   async function openPlanMap() {
@@ -972,14 +988,90 @@ if (!activeTrip) return null;
       return;
     }
     const encoded = encodeURIComponent(query);
-    const url = `https://maps.apple.com/?q=${encoded}`;
+    const nativeUrl = Platform.OS==="ios"
+      ? `maps://?q=${encoded}`
+      : Platform.OS==="android"
+        ? `geo:0,0?q=${encoded}`
+        : `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+    const fallbackUrl = Platform.OS==="ios"
+      ? `https://maps.apple.com/?q=${encoded}`
+      : `https://www.google.com/maps/search/?api=1&query=${encoded}`;
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) throw new Error("unsupported");
-      await Linking.openURL(url);
+      const supported = await Linking.canOpenURL(nativeUrl);
+      await Linking.openURL(supported ? nativeUrl : fallbackUrl);
     } catch {
-      Alert.alert("지도 열기 실패", "Apple 지도에서 장소를 열지 못했어요.");
+      try {
+        await Linking.openURL(fallbackUrl);
+      } catch {
+        Alert.alert("지도 열기 실패", "이 기기에서 지도 앱을 열지 못했어요.");
+      }
     }
+  }
+
+  async function readPlanNotificationIds():Promise<Record<string,string>> {
+    try {
+      const raw=await AsyncStorage.getItem(PLAN_NOTIFICATION_IDS_KEY);
+      if(!raw) return {};
+      const parsed=JSON.parse(raw);
+      return parsed && typeof parsed==="object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      await AsyncStorage.removeItem(PLAN_NOTIFICATION_IDS_KEY).catch(()=>{});
+      return {};
+    }
+  }
+
+  async function cancelTripReminders(tripId:string) {
+    try {
+      const ids=await readPlanNotificationIds();
+      const prefix=`${tripId}:`;
+      const targets=Object.entries(ids).filter(([key])=>key.startsWith(prefix));
+      await Promise.all(targets.map(([,notificationId])=>Notifications.cancelScheduledNotificationAsync(notificationId).catch(()=>{})));
+      targets.forEach(([key])=>delete ids[key]);
+      await AsyncStorage.setItem(PLAN_NOTIFICATION_IDS_KEY,JSON.stringify(ids));
+    } catch {}
+  }
+
+  async function cancelPlanReminder(planId:string) {
+    try {
+      const ids=await readPlanNotificationIds();
+      const key=`${activeTrip.id}:${planId}`;
+      const notificationId=ids[key];
+      if(notificationId){
+        await Notifications.cancelScheduledNotificationAsync(notificationId);
+        delete ids[key];
+        await AsyncStorage.setItem(PLAN_NOTIFICATION_IDS_KEY,JSON.stringify(ids));
+      }
+    } catch {}
+  }
+
+  async function schedulePlanReminder(plan:TripPlan) {
+    if (!planReminder || !plan.time) return;
+    const match=/^(\d{1,2}):(\d{2})$/.exec(plan.time.trim());
+    if (!match) return;
+    const [year,month,day]=plan.date.split("-").map(Number);
+    const hour=Number(match[1]), minute=Number(match[2]);
+    const eventAt=new Date(year,month-1,day,hour,minute,0,0);
+    const triggerAt=new Date(eventAt.getTime()-30*60*1000);
+    if (!year||!month||!day||hour>23||minute>59||triggerAt.getTime()<=Date.now()) return;
+    try {
+      await cancelPlanReminder(plan.id);
+      if (Platform.OS==="android") {
+        await Notifications.setNotificationChannelAsync("schedule-reminders", {
+          name:"일정 알림",
+          importance:Notifications.AndroidImportance.HIGH,
+        });
+      }
+      let status=(await Notifications.getPermissionsAsync()).status;
+      if(status!=="granted") status=(await Notifications.requestPermissionsAsync()).status;
+      if(status!=="granted") return;
+      const notificationId=await Notifications.scheduleNotificationAsync({
+        content:{title:`✈️ ${plan.title}`,body:"30분 뒤 일정이 있어요.",data:{tripId:activeTrip.id,planId:plan.id}},
+        trigger:{type:Notifications.SchedulableTriggerInputTypes.DATE,date:triggerAt,...(Platform.OS==="android"?{channelId:"schedule-reminders"}:{})},
+      });
+      const ids=await readPlanNotificationIds();
+      ids[`${activeTrip.id}:${plan.id}`]=notificationId;
+      await AsyncStorage.setItem(PLAN_NOTIFICATION_IDS_KEY,JSON.stringify(ids));
+    } catch {}
   }
 
   function savePlan() {
@@ -1003,6 +1095,7 @@ if (!activeTrip) return null;
       ...prev,
       [activeTrip.id]: [...(prev[activeTrip.id] || []), plan]
     }));
+    void schedulePlanReminder(plan);
     setPlanModalDate(null);
   }
 
@@ -1012,10 +1105,13 @@ if (!activeTrip) return null;
       {
         text:"삭제",
         style:"destructive",
-        onPress:()=>setPlansByTrip(prev=>({
-          ...prev,
-          [activeTrip.id]:(prev[activeTrip.id] || []).filter(p=>p.id!==planId)
-        }))
+        onPress:()=>{
+          void cancelPlanReminder(planId);
+          setPlansByTrip(prev=>({
+            ...prev,
+            [activeTrip.id]:(prev[activeTrip.id] || []).filter(p=>p.id!==planId)
+          }));
+        }
       }
     ]);
   }
@@ -1066,8 +1162,8 @@ if (!activeTrip) return null;
 
   async function shareBackup() {
     const backup = {
-      app: "Trip Split",
-      version: "V3.13.0",
+      app: "Togetrip",
+      version: "V3.28.0",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -1083,7 +1179,7 @@ if (!activeTrip) return null;
     try {
       await Share.share({
         message: JSON.stringify(backup, null, 2),
-        title: `Trip Split 백업 - ${activeTrip.name}`,
+        title: `Togetrip 백업 - ${activeTrip.name}`,
       });
     } catch (error:any) {
       const message = String(error?.message || error || "");
@@ -1096,7 +1192,7 @@ if (!activeTrip) return null;
   function restoreBackup() {
     const text = restoreText.trim();
     if (!text) {
-      Alert.alert("백업 내용 필요", "이전에 저장한 Trip Split 백업 내용을 붙여넣어 주세요.");
+      Alert.alert("백업 내용 필요", "이전에 저장한 Togetrip 백업 내용을 붙여넣어 주세요.");
       return;
     }
 
@@ -1110,7 +1206,7 @@ if (!activeTrip) return null;
 
     const restored = parsed?.state;
     if (!restored || !Array.isArray(restored.trips) || !restored.profile) {
-      Alert.alert("지원하지 않는 백업", "Trip Split에서 만든 백업인지 확인해주세요.");
+      Alert.alert("지원하지 않는 백업", "Togetrip에서 만든 백업인지 확인해주세요.");
       return;
     }
 
@@ -1127,6 +1223,8 @@ if (!activeTrip) return null;
               const identityId = await getStableIdentityId();
               const next = applyStableIdentity(migrate(restored), identityId);
               setState(next);
+              // OS notification identifiers are device-local and must never be restored from backup.
+              await AsyncStorage.removeItem(PLAN_NOTIFICATION_IDS_KEY);
 
               if (parsed?.plansByTrip && typeof parsed.plansByTrip === "object") {
                 setPlansByTrip(parsed.plansByTrip);
@@ -1295,7 +1393,7 @@ if (!activeTrip) return null;
     const inviteUrl = buildInviteWebUrl(meta);
     try {
       await Share.share({
-        message:`✈️ Trip Split 실시간 공동 여행 초대\n${activeTrip.name}\n\n아래 링크를 열면 앱에서 참가하거나 다운로드 안내를 볼 수 있어요.\n${inviteUrl}\n\n링크가 안 열리면 이 초대코드를 직접 붙여넣어주세요.\n${invite}`,
+        message:`✈️ Togetrip 실시간 공동 여행 초대\n${activeTrip.name}\n\n아래 링크를 열면 앱에서 참가하거나 다운로드 안내를 볼 수 있어요.\n${inviteUrl}\n\n링크가 안 열리면 이 초대코드를 직접 붙여넣어주세요.\n${invite}`,
       });
     } catch (error:any) {
       const message = String(error?.message || error || "");
@@ -1449,7 +1547,7 @@ if (!activeTrip) return null;
     const invite = buildSharedInvite();
     try {
       await Share.share({
-        message: `✈️ Trip Split 공동 여행 초대\n${activeTrip.name}\n\n아래 초대코드를 Trip Split의 관리 → 공동 여행방에 붙여넣어주세요.\n\n${invite}`,
+        message: `✈️ Togetrip 공동 여행 초대\n${activeTrip.name}\n\n아래 초대코드를 Togetrip의 더보기 → 공동 여행방에 붙여넣어주세요.\n\n${invite}`,
       });
     } catch (error:any) {
       const message = String(error?.message || error || "");
@@ -1499,7 +1597,7 @@ if (!activeTrip) return null;
     const prefix = "TRIPSPLIT_INVITE_V1:";
     const at = raw.indexOf(prefix);
     if (at < 0) {
-      Alert.alert("초대코드 확인", "Trip Split 초대코드를 다시 붙여넣어주세요.");
+      Alert.alert("초대코드 확인", "Togetrip 초대코드를 다시 붙여넣어주세요.");
       return;
     }
     try {
@@ -1571,7 +1669,7 @@ if (!activeTrip) return null;
           </View>
           <View style={styles.appHeaderActions}>
             <View style={[styles.versionPill,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.32):"transparent"}]}>
-              <Text style={[styles.version,{color:theme.accent}]}>V3.13.0</Text>
+              <Text style={[styles.version,{color:theme.accent}]}>V3.28.0</Text>
             </View>
           </View>
         </View>
@@ -1940,7 +2038,7 @@ if (!activeTrip) return null;
             onDeletePlan={deletePlan}
           />
           <Card cardStyle={cardDecorStyle} title="📍 일정 · 지도">
-            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>일정에서 장소를 입력하면 지도에서 바로 찾아볼 수 있어요. iPhone은 현재 Apple 지도 연결을 사용해요.</Text>
+            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>일정에 저장한 장소는 ‘지도에서 보기’로 바로 열 수 있어요. iPhone은 Apple 지도, Android는 기본 지도/Google 지도를 사용해요.</Text>
             {activePlans.length===0 ? <Text style={[styles.emptyText,isDark&&{color:appearanceColors.muted}]}>아직 일정이 없어요. 달력의 날짜를 눌러 일정을 추가해보세요.</Text> :
               activePlans.map(plan=>(
                 <View key={plan.id} style={[styles.togetripPlanRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
@@ -2224,7 +2322,7 @@ if (!activeTrip) return null;
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
               <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
-            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.13.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
+            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.28.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
 
           <ManageGroup
@@ -2345,7 +2443,7 @@ if (!activeTrip) return null;
                 <TextInput
                   value={restoreText}
                   onChangeText={setRestoreText}
-                  placeholder={'{ "app": "Trip Split", ... }'}
+                  placeholder={'{ "app": "Togetrip", ... }'}
                   placeholderTextColor="#A4A7B8"
                   multiline
                   autoCapitalize="none"
@@ -2654,8 +2752,12 @@ if (!activeTrip) return null;
               placeholder={planType==="flight" ? "예: KE721 · 인천공항 T2" : planType==="hotel" ? "예: 체크인 15:00" : "예: 예약번호 / 장소 메모"}
             />
 
+            <Pressable onPress={()=>setPlanReminder(v=>!v)} style={[styles.planReminderRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
+              <View style={[styles.planReminderCheck,{backgroundColor:planReminder?theme.accent:"transparent",borderColor:planReminder?theme.accent:"#C9CBD6"}]}><Text style={styles.planReminderCheckText}>{planReminder?"✓":""}</Text></View>
+              <View style={styles.flex}><Text style={[styles.bold,isDark&&{color:appearanceColors.text}]}>일정 30분 전 알림</Text><Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>시간이 있는 미래 일정에 적용</Text></View>
+            </Pressable>
             <Text style={[styles.analyticsFootnote,isDark&&{color:appearanceColors.muted}]}>
-              ⏰ 시간까지 저장하면 일정 알림용 정보로 유지돼요. TestFlight 빌드에서 알림 권한 연결 후 기기 알림으로 활성화할 예정이에요.
+              ⏰ 시간까지 저장하고 알림을 켜면 일정 30분 전에 기기 알림을 예약해요.
             </Text>
             <Pressable
               onPress={savePlan}
@@ -4186,4 +4288,7 @@ const styles=StyleSheet.create({
   togetripPlanIcon:{width:38,height:38,borderRadius:12,alignItems:"center",justifyContent:"center"},
   togetripMoreQuick:{flexDirection:"row",gap:8,marginBottom:12},
   togetripMoreButton:{flex:1,borderRadius:16,paddingVertical:14,alignItems:"center"},
+  planReminderRow:{flexDirection:"row",alignItems:"center",gap:10,borderRadius:16,borderWidth:1,borderColor:"#ECEEF5",padding:12,marginTop:10},
+  planReminderCheck:{width:24,height:24,borderRadius:8,borderWidth:1.5,alignItems:"center",justifyContent:"center"},
+  planReminderCheckText:{color:"#FFFFFF",fontWeight:"900",fontSize:14},
 });
