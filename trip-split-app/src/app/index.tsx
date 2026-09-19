@@ -128,7 +128,7 @@ const INITIAL: AppState = {
   trips: [first],
 };
 
-type Tab = "home" | "expense" | "game" | "settle" | "manage";
+type Tab = "home" | "schedule" | "expense" | "game" | "settle" | "manage";
 type ExpenseView = "add" | "list";
 type ManageSection = "checklist" | "shared" | "decorate" | "backup" | "profile";
 
@@ -1067,7 +1067,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Trip Split",
-      version: "V3.12.1",
+      version: "V3.13.0",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -1571,7 +1571,7 @@ if (!activeTrip) return null;
           </View>
           <View style={styles.appHeaderActions}>
             <View style={[styles.versionPill,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.32):"transparent"}]}>
-              <Text style={[styles.version,{color:theme.accent}]}>V3.12.1</Text>
+              <Text style={[styles.version,{color:theme.accent}]}>V3.13.0</Text>
             </View>
           </View>
         </View>
@@ -1583,6 +1583,35 @@ if (!activeTrip) return null;
           ],
         }}>
         {tab==="home" && <>
+          <View style={[styles.togetripHero,{backgroundColor:uiAccentSoft,borderColor:isDark?appearanceColors.border:"#EEF0F7"}]}>
+            <View style={styles.flex}>
+              <Text style={[styles.togetripHeroEyebrow,{color:theme.accent}]}>✈️ TOGETRIP</Text>
+              <Text style={[styles.togetripHeroTitle,isDark&&{color:appearanceColors.text}]}>{activeTrip.name || "우리 여행"}</Text>
+              <Text style={[styles.togetripHeroMeta,isDark&&{color:appearanceColors.muted}]}>
+                {[activeTrip.start,activeTrip.end].filter(Boolean).join(" ~ ") || "여행 날짜를 설정해보세요"} · {activeTrip.people.length}명
+              </Text>
+            </View>
+            <View style={[styles.togetripHeroBadge,{backgroundColor:isDark?appearanceColors.surface2:"#FFFFFF"}]}>
+              <Text style={styles.togetripHeroBadgeIcon}>🌅</Text>
+            </View>
+          </View>
+
+          <View style={styles.togetripQuickGrid}>
+            {[
+              ["＋","지출 추가",()=>{resetForm();setExpenseView("add");setTab("expense");}],
+              ["💸","정산하기",()=>setTab("settle")],
+              ["📅","일정 관리",()=>setTab("schedule")],
+              ["🧾","영수증 AI",()=>{resetForm();setExpenseView("add");setTab("expense");}],
+              ["📍","지도 보기",()=>setTab("schedule")],
+              ["🎮","게임하기",()=>setTab("game")],
+            ].map(([icon,label,action]:any)=>(
+              <Pressable key={label} onPress={action} style={[styles.togetripQuickButton,isDark&&{backgroundColor:appearanceColors.surface,borderColor:appearanceColors.border}]}>
+                <Text style={styles.togetripQuickIcon}>{icon}</Text>
+                <Text style={[styles.togetripQuickLabel,isDark&&{color:appearanceColors.text}]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           <TripCalendar
             expenses={activeTrip.expenses}
             people={activeTrip.people}
@@ -1887,6 +1916,45 @@ if (!activeTrip) return null;
           </Card>
         </>}
 
+        {tab==="schedule" && <>
+          <View style={styles.togetripSectionHead}>
+            <View style={styles.flex}>
+              <Text style={[styles.togetripScreenTitle,isDark&&{color:appearanceColors.text}]}>여행 일정</Text>
+              <Text style={[styles.togetripScreenSub,isDark&&{color:appearanceColors.muted}]}>날짜별 일정과 장소를 한눈에 관리해요.</Text>
+            </View>
+            <Pressable onPress={()=>openPlanModal(activeTrip.start||today())} style={[styles.togetripAddCircle,{backgroundColor:theme.accent}]}>
+              <Text style={styles.togetripAddCircleText}>＋</Text>
+            </Pressable>
+          </View>
+          <TripCalendar
+            expenses={activeTrip.expenses}
+            people={activeTrip.people}
+            initialDate={activeTrip.start||today()}
+            startDate={activeTrip.start}
+            endDate={activeTrip.end}
+            plans={activePlans}
+            accent={theme.accent}
+            accentSoft={uiAccentSoft}
+            onAddForDate={d=>{resetForm();setDate(d);setExpenseView("add");setTab("expense");}}
+            onAddPlan={openPlanModal}
+            onDeletePlan={deletePlan}
+          />
+          <Card cardStyle={cardDecorStyle} title="📍 일정 · 지도">
+            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>일정에서 장소를 입력하면 지도에서 바로 찾아볼 수 있어요. iPhone은 현재 Apple 지도 연결을 사용해요.</Text>
+            {activePlans.length===0 ? <Text style={[styles.emptyText,isDark&&{color:appearanceColors.muted}]}>아직 일정이 없어요. 달력의 날짜를 눌러 일정을 추가해보세요.</Text> :
+              activePlans.map(plan=>(
+                <View key={plan.id} style={[styles.togetripPlanRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
+                  <View style={[styles.togetripPlanIcon,{backgroundColor:uiAccentSoft}]}><Text>{plan.type==="flight"?"✈️":plan.type==="hotel"?"🏨":"📍"}</Text></View>
+                  <View style={styles.flex}>
+                    <Text style={[styles.bold,isDark&&{color:appearanceColors.text}]}>{plan.time?`${plan.time} · `:""}{plan.title}</Text>
+                    <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>{plan.date}{plan.detail?` · ${String(plan.detail).replace(/\n/g," · ")}`:""}</Text>
+                  </View>
+                </View>
+              ))
+            }
+          </Card>
+        </>}
+
         {tab==="expense" && <>
           <View style={[styles.segmentWrap,{backgroundColor:uiAccentSoft}]}>
             <Pressable
@@ -2028,6 +2096,10 @@ if (!activeTrip) return null;
             <Text style={[styles.manageTitle,isDark&&{color:appearanceColors.text}]}>여행 관리</Text>
             <Text style={[styles.manageSubtitle,isDark&&{color:appearanceColors.muted}]}>준비물, 공동 여행방, 백업과 내 정보를 관리해요.</Text>
           </View>
+          <View style={styles.togetripMoreQuick}>
+            <Pressable onPress={()=>setTab("settle")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text style={[styles.bold,{color:theme.accent}]}>💸 정산</Text></Pressable>
+            <Pressable onPress={()=>setTab("game")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text style={[styles.bold,{color:theme.accent}]}>🎮 미니게임</Text></Pressable>
+          </View>
           <ManageGroup
             title="✅ 준비 체크리스트"
             subtitle="준비물 체크와 진행률"
@@ -2152,7 +2224,7 @@ if (!activeTrip) return null;
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
               <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
-            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.12.1 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
+            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.13.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
 
           <ManageGroup
@@ -2627,10 +2699,10 @@ if (!activeTrip) return null;
 
       <View style={[styles.tabs,isDark&&{backgroundColor:appearanceColors.nav,borderColor:appearanceColors.border,borderWidth:1},isTiny&&styles.tabsTiny,{left:navInset,right:navInset,bottom:isTiny?5:isCompact?6:8}]}>
         <TabButton label="🏠 홈" active={tab==="home"} onPress={()=>setTab("home")}/>
+        <TabButton label="📅 일정" active={tab==="schedule"} onPress={()=>setTab("schedule")}/>
         <TabButton label="＋ 지출" active={tab==="expense"} onPress={()=>{if(!editingId)resetForm();setExpenseView("add");setTab("expense");}}/>
-        <TabButton label="🎮 게임" active={tab==="game"} onPress={()=>setTab("game")}/>
-        <TabButton label="💸 정산" active={tab==="settle"} onPress={()=>setTab("settle")}/>
-        <TabButton label="⚙️ 관리" active={tab==="manage"} onPress={()=>setTab("manage")}/>
+        <TabButton label="👥 동행자" active={tab==="home"} onPress={()=>setTab("home")}/>
+        <TabButton label="••• 더보기" active={tab==="manage"||tab==="game"||tab==="settle"} onPress={()=>setTab("manage")}/>
       </View>
     </SafeAreaView>
   );
@@ -4094,4 +4166,24 @@ const styles=StyleSheet.create({
     lineHeight:15,
     color:"#9699AB"
   },
+
+  togetripHero:{flexDirection:"row",alignItems:"center",gap:12,borderRadius:24,borderWidth:1,padding:18,marginBottom:12,overflow:"hidden"},
+  togetripHeroEyebrow:{fontSize:11,fontWeight:"800",letterSpacing:1.2,marginBottom:4},
+  togetripHeroTitle:{fontSize:22,fontWeight:"900",color:"#171B2D",marginBottom:4},
+  togetripHeroMeta:{fontSize:12,color:"#7B8095",fontWeight:"600"},
+  togetripHeroBadge:{width:58,height:58,borderRadius:20,alignItems:"center",justifyContent:"center"},
+  togetripHeroBadgeIcon:{fontSize:28},
+  togetripQuickGrid:{flexDirection:"row",flexWrap:"wrap",gap:8,marginBottom:12},
+  togetripQuickButton:{width:"31.5%",minHeight:76,borderRadius:18,borderWidth:1,borderColor:"#EEF0F7",backgroundColor:"#FFFFFF",alignItems:"center",justifyContent:"center",padding:8},
+  togetripQuickIcon:{fontSize:21,marginBottom:5},
+  togetripQuickLabel:{fontSize:11,fontWeight:"800",color:"#353A4F",textAlign:"center"},
+  togetripSectionHead:{flexDirection:"row",alignItems:"center",marginBottom:12,paddingHorizontal:2},
+  togetripScreenTitle:{fontSize:23,fontWeight:"900",color:"#171B2D"},
+  togetripScreenSub:{fontSize:12,color:"#85899A",marginTop:3},
+  togetripAddCircle:{width:40,height:40,borderRadius:20,alignItems:"center",justifyContent:"center"},
+  togetripAddCircleText:{color:"#FFFFFF",fontSize:24,fontWeight:"700",marginTop:-2},
+  togetripPlanRow:{flexDirection:"row",alignItems:"center",gap:10,padding:12,borderRadius:16,borderWidth:1,borderColor:"#EEF0F7",marginTop:8},
+  togetripPlanIcon:{width:38,height:38,borderRadius:12,alignItems:"center",justifyContent:"center"},
+  togetripMoreQuick:{flexDirection:"row",gap:8,marginBottom:12},
+  togetripMoreButton:{flex:1,borderRadius:16,paddingVertical:14,alignItems:"center"},
 });
