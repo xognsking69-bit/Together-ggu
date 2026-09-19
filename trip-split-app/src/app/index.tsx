@@ -308,6 +308,7 @@ function IndexContent() {
   const [planTitle, setPlanTitle] = useState("");
   const [planTime, setPlanTime] = useState("");
   const [planDetail, setPlanDetail] = useState("");
+  const [planLocation, setPlanLocation] = useState("");
   const [checkItemText, setCheckItemText] = useState("");
   const [datePickerMode, setDatePickerMode] = useState<"expense" | "start" | "end" | "newStart" | "newEnd" | null>(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
@@ -964,6 +965,23 @@ if (!activeTrip) return null;
     setPlanDetail("");
   }
 
+  async function openPlanMap() {
+    const query = planLocation.trim() || planTitle.trim();
+    if (!query) {
+      Alert.alert("장소 입력 필요", "지도에서 찾을 장소나 숙소/일정 이름을 입력해주세요.");
+      return;
+    }
+    const encoded = encodeURIComponent(query);
+    const url = `https://maps.apple.com/?q=${encoded}`;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) throw new Error("unsupported");
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("지도 열기 실패", "Apple 지도에서 장소를 열지 못했어요.");
+    }
+  }
+
   function savePlan() {
     if (!planModalDate) return;
     const titleText = planTitle.trim();
@@ -978,7 +996,7 @@ if (!activeTrip) return null;
       type: planType,
       title: titleText,
       time: planTime.trim(),
-      detail: planDetail.trim(),
+      detail: [planDetail.trim(), planLocation.trim() ? `📍 ${planLocation.trim()}` : ""].filter(Boolean).join("\n"),
     };
 
     setPlansByTrip(prev => ({
@@ -1049,7 +1067,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Trip Split",
-      version: "V3.9.0",
+      version: "V3.10.0",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -1526,7 +1544,7 @@ if (!activeTrip) return null;
           </View>
           <View style={styles.appHeaderActions}>
             <View style={[styles.versionPill,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.32):"transparent"}]}>
-              <Text style={[styles.version,{color:theme.accent}]}>V3.9.0</Text>
+              <Text style={[styles.version,{color:theme.accent}]}>V3.10.0</Text>
             </View>
           </View>
         </View>
@@ -2107,7 +2125,7 @@ if (!activeTrip) return null;
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
               <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
-            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.9.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
+            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.10.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
 
           <ManageGroup
@@ -2519,12 +2537,27 @@ if (!activeTrip) return null;
               placeholder="예: 21:30"
             />
             <Field
+              label="장소 / 지도 검색"
+              value={planLocation}
+              onChangeText={setPlanLocation}
+              placeholder={planType==="hotel" ? "예: Swissotel Nankai Osaka" : "예: 도톤보리"}
+            />
+            <Pressable
+              onPress={openPlanMap}
+              style={[styles.profilePhotoAction,{borderColor:theme.accent,alignSelf:"flex-start",marginBottom:8}]}
+            >
+              <Text style={[styles.profilePhotoActionText,{color:theme.accent}]}>🗺️ Apple 지도에서 확인</Text>
+            </Pressable>
+            <Field
               label="메모"
               value={planDetail}
               onChangeText={setPlanDetail}
               placeholder={planType==="flight" ? "예: KE721 · 인천공항 T2" : planType==="hotel" ? "예: 체크인 15:00" : "예: 예약번호 / 장소 메모"}
             />
 
+            <Text style={[styles.analyticsFootnote,isDark&&{color:appearanceColors.muted}]}>
+              ⏰ 시간까지 저장하면 일정 알림용 정보로 유지돼요. TestFlight 빌드에서 알림 권한 연결 후 기기 알림으로 활성화할 예정이에요.
+            </Text>
             <Pressable
               onPress={savePlan}
               style={[styles.planSaveButton,{backgroundColor:theme.accent}]}
