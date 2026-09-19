@@ -1067,7 +1067,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Trip Split",
-      version: "V3.10.0",
+      version: "V3.11.0",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -1077,6 +1077,7 @@ if (!activeTrip) return null;
       },
       plansByTrip,
       profilePhotos,
+      settlementDoneByTrip,
     };
 
     try {
@@ -1123,7 +1124,8 @@ if (!activeTrip) return null;
           style:"destructive",
           onPress: async () => {
             try {
-              const next = migrate(restored);
+              const identityId = await getStableIdentityId();
+              const next = applyStableIdentity(migrate(restored), identityId);
               setState(next);
 
               if (parsed?.plansByTrip && typeof parsed.plansByTrip === "object") {
@@ -1132,6 +1134,10 @@ if (!activeTrip) return null;
 
               if (parsed?.profilePhotos && typeof parsed.profilePhotos === "object") {
                 setProfilePhotos(parsed.profilePhotos);
+              }
+
+              if (parsed?.settlementDoneByTrip && typeof parsed.settlementDoneByTrip === "object") {
+                setSettlementDoneByTrip(parsed.settlementDoneByTrip);
               }
 
               const appearance = parsed?.appearance;
@@ -1154,7 +1160,7 @@ if (!activeTrip) return null;
 
               setRestoreText("");
               setShowRestore(false);
-              Alert.alert("복원 완료", "여행·지출·인원·프로필 사진·꾸미기 설정을 복원했어요.");
+              Alert.alert("복원 완료", "여행·지출·인원·일정·정산 완료 기록·프로필 사진·꾸미기 설정을 복원했어요.");
             } catch {
               Alert.alert("복원 실패", "백업 내용을 다시 확인해주세요.");
             }
@@ -1178,12 +1184,29 @@ if (!activeTrip) return null;
     return JSON.stringify({ trip:safeTripForShare(trip), plans });
   }
 
+  async function fetchWithTimeout(url:string, options:any, timeoutMs=12000) {
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {...options, signal:controller.signal});
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function sharedApi(path:string, body:any) {
-    const response = await fetch(`${SHARED_API_URL}${path}`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(body),
-    });
+    let response:Response;
+    try {
+      response = await fetchWithTimeout(`${SHARED_API_URL}${path}`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body),
+      });
+    } catch (error:any) {
+      const wrapped:any = new Error(error?.name==="AbortError" ? "공동 여행 서버 응답이 늦어요. 변경 내용은 기기에 보관돼요." : "인터넷 연결을 확인해주세요. 변경 내용은 기기에 보관돼요.");
+      wrapped.status = 0;
+      throw wrapped;
+    }
     const text = await response.text();
     let data:any = {};
     try { data = text ? JSON.parse(text) : {}; } catch {}
@@ -1312,6 +1335,10 @@ if (!activeTrip) return null;
   async function pullSharedRoom(tripId:string, quiet=false) {
     const meta = sharedRoomsRef.current[tripId];
     if (!meta) return;
+    if (meta.pendingSync) {
+      if (!quiet) setSharedStatusText("이 기기의 미동기화 변경을 먼저 서버에 저장할게요.");
+      return;
+    }
     if (!quiet) { setSharedStatus("syncing"); setSharedStatusText("최신 내용을 확인하는 중…"); }
     try {
       const data = await sharedApi("/shared/pull", {code:meta.code,token:meta.token});
@@ -1544,7 +1571,7 @@ if (!activeTrip) return null;
           </View>
           <View style={styles.appHeaderActions}>
             <View style={[styles.versionPill,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.32):"transparent"}]}>
-              <Text style={[styles.version,{color:theme.accent}]}>V3.10.0</Text>
+              <Text style={[styles.version,{color:theme.accent}]}>V3.11.0</Text>
             </View>
           </View>
         </View>
@@ -2125,7 +2152,7 @@ if (!activeTrip) return null;
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
               <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
-            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.10.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
+            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.11.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
 
           <ManageGroup
