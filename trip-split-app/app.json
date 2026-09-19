@@ -1,14 +1,16 @@
 {
   "expo": {
-    "name": "trip-split-app",
-    "slug": "trip-split-app",
-    "version": "1.0.0",
+    "name": "Togetrip",
+    "slug": "togetrip",
+    "version": "3.12.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tripsplitapp",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.togetrip.app",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +19,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.togetrip.app",
+      "versionCode": 1
     },
     "web": {
       "output": "static",
