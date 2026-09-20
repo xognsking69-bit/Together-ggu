@@ -1163,7 +1163,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Togetrip",
-      version: "V3.28.0",
+      version: "V3.28.1",
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -1669,7 +1669,7 @@ if (!activeTrip) return null;
           </View>
           <View style={styles.appHeaderActions}>
             <View style={[styles.versionPill,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.32):"transparent"}]}>
-              <Text style={[styles.version,{color:theme.accent}]}>V3.28.0</Text>
+              <Text style={[styles.version,{color:theme.accent}]}>V3.28.1</Text>
             </View>
           </View>
         </View>
@@ -2077,8 +2077,6 @@ if (!activeTrip) return null;
               setReceiptUri(uri);
               if (!uri) { setReceiptAnalysis(null); setReceiptItemShares(null); }
             }}
-            people={activeTrip.people}
-            onItemSplitChange={(shares, ids)=>{ setReceiptItemShares(shares); if (ids.length) setParticipants(ids); }}
             onDetected={result=>{
               setReceiptAnalysis(result);
               if (result.merchant) setTitle(result.merchant);
@@ -2322,7 +2320,7 @@ if (!activeTrip) return null;
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
               <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
-            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.28.0 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
+            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.28.1 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
 
           <ManageGroup
