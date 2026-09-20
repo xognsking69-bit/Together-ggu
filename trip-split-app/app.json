@@ -2,7 +2,7 @@
   "expo": {
     "name": "Togetrip",
     "slug": "togetrip",
-    "version": "3.28.0",
+    "version": "3.28.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tripsplitapp",
@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.togetrip.app",
-      "buildNumber": "16",
+      "buildNumber": "17",
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -24,7 +24,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.togetrip.app",
-      "versionCode": 16
+      "versionCode": 17
     },
     "web": {
       "output": "static",
