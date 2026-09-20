@@ -11,6 +11,7 @@ export type Expense = {
   krwAmount: number;
   payerId: string;
   participantIds: string[];
+  customShares?: Record<string, number>;
 };
 
 export type CheckItem = { id: string; text: string; done: boolean };
