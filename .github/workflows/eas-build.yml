@@ -1,0 +1,60 @@
+name: Togetrip EAS Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Build platform
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eas-build-${{ github.ref }}-${{ inputs.platform }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: EAS production build (${{ inputs.platform }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: trip-split-app/package-lock.json
+
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: trip-split-app
+        run: npm ci
+
+      - name: Link the existing EAS project
+        working-directory: trip-split-app
+        run: eas init --account susysisu --non-interactive
+
+      - name: Verify Expo configuration
+        working-directory: trip-split-app
+        run: npx expo config --type public
+
+      - name: Start production build on EAS
+        working-directory: trip-split-app
+        run: eas build --platform "${{ inputs.platform }}" --profile production --non-interactive --no-wait
