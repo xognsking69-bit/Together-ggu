@@ -14,6 +14,7 @@ export type TripPlan = {
   title: string;
   time?: string;
   detail?: string;
+  reminder?: boolean;
 };
 
 type Props = {
@@ -27,6 +28,7 @@ type Props = {
   accentSoft?: string;
   onAddForDate: (date: string) => void;
   onAddPlan?: (date: string) => void;
+  onEditPlan?: (plan: TripPlan) => void;
   onDeletePlan?: (id: string) => void;
 };
 
@@ -69,6 +71,7 @@ export default function TripCalendar({
   accentSoft = "#EEEEFF",
   onAddForDate,
   onAddPlan,
+  onEditPlan,
   onDeletePlan,
 }: Props) {
   const initial = initialDate
@@ -349,11 +352,18 @@ export default function TripCalendar({
               <Text style={styles.planTitle}>{plan.title}</Text>
               {!!plan.detail && <Text style={styles.planDetail}>{plan.detail}</Text>}
             </View>
-            {Boolean(onDeletePlan) && (
-              <Pressable onPress={()=>onDeletePlan?.(plan.id)} style={styles.planDelete}>
-                <Text style={styles.planDeleteText}>×</Text>
-              </Pressable>
-            )}
+            <View style={styles.planActions}>
+              {Boolean(onEditPlan) && (
+                <Pressable onPress={()=>onEditPlan?.(plan)} style={styles.planEdit}>
+                  <Text style={styles.planEditText}>수정</Text>
+                </Pressable>
+              )}
+              {Boolean(onDeletePlan) && (
+                <Pressable onPress={()=>onDeletePlan?.(plan.id)} style={styles.planDelete}>
+                  <Text style={styles.planDeleteText}>×</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         ))
       )}
@@ -511,6 +521,9 @@ const styles=StyleSheet.create({
     width:42,height:42,borderRadius:13,
     alignItems:"center",justifyContent:"center",
   },
+  planActions:{alignItems:"center",gap:4,marginLeft:6},
+  planEdit:{minWidth:44,minHeight:32,paddingHorizontal:8,borderRadius:10,alignItems:"center",justifyContent:"center",backgroundColor:"#EEEEFF"},
+  planEditText:{fontSize:12,fontWeight:"900",color:"#5C5CE2"},
   planIcon:{fontSize:20},
   planTop:{flexDirection:"row",alignItems:"center",gap:8},
   planType:{fontSize:9,fontWeight:"900"},
