@@ -9,7 +9,7 @@
     "scheme": "tripsplitapp",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.susysisu.togetrip.ios",
       "buildNumber": "27",
       "config": {
