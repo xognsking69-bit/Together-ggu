@@ -320,6 +320,7 @@ function IndexContent() {
   const [showRestore, setShowRestore] = useState(false);
   const [plansByTrip, setPlansByTrip] = useState<Record<string, TripPlan[]>>({});
   const [planModalDate, setPlanModalDate] = useState<string | null>(null);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [planType, setPlanType] = useState<PlanType>("flight");
   const [planTitle, setPlanTitle] = useState("");
   const [planTime, setPlanTime] = useState("");
@@ -327,7 +328,7 @@ function IndexContent() {
   const [planLocation, setPlanLocation] = useState("");
   const [planReminder, setPlanReminder] = useState(true);
   const [checkItemText, setCheckItemText] = useState("");
-  const [datePickerMode, setDatePickerMode] = useState<"expense" | "start" | "end" | "newStart" | "newEnd" | null>(null);
+  const [datePickerMode, setDatePickerMode] = useState<"expense" | "start" | "end" | "newStart" | "newEnd" | "plan" | null>(null);
   const [showNewTrip, setShowNewTrip] = useState(false);
   const [newTripName, setNewTripName] = useState("");
   const [newTripStart, setNewTripStart] = useState("");
@@ -969,6 +970,7 @@ if (!activeTrip) return null;
   }
 
   function openPlanModal(date:string) {
+    setEditingPlanId(null);
     setPlanModalDate(date);
     setPlanType("flight");
     setPlanTitle("");
@@ -976,6 +978,19 @@ if (!activeTrip) return null;
     setPlanDetail("");
     setPlanLocation("");
     setPlanReminder(true);
+  }
+
+  function openPlanEdit(plan:TripPlan) {
+    const detailLines = String(plan.detail || "").split("\n").filter(Boolean);
+    const locationLine = detailLines.find(line=>line.trim().startsWith("📍"));
+    setEditingPlanId(plan.id);
+    setPlanModalDate(plan.date);
+    setPlanType(plan.type);
+    setPlanTitle(plan.title);
+    setPlanTime(plan.time || "");
+    setPlanLocation(locationLine ? locationLine.replace(/^\s*📍\s*/, "") : "");
+    setPlanDetail(detailLines.filter(line=>line!==locationLine).join("\n"));
+    setPlanReminder(plan.reminder !== false);
   }
 
   async function openPlanMap() {
@@ -1042,7 +1057,7 @@ if (!activeTrip) return null;
   }
 
   async function schedulePlanReminder(plan:TripPlan) {
-    if (!planReminder || !plan.time) return;
+    if (!plan.reminder || !plan.time) return;
     const match=/^(\d{1,2}):(\d{2})$/.exec(plan.time.trim());
     if (!match) return;
     const [year,month,day]=plan.date.split("-").map(Number);
@@ -1080,19 +1095,24 @@ if (!activeTrip) return null;
     }
 
     const plan:TripPlan = {
-      id: makeId(),
+      id: editingPlanId || makeId(),
       date: planModalDate,
       type: planType,
       title: titleText,
       time: planTime.trim(),
       detail: [planDetail.trim(), planLocation.trim() ? `📍 ${planLocation.trim()}` : ""].filter(Boolean).join("\n"),
+      reminder: planReminder,
     };
 
     setPlansByTrip(prev => ({
       ...prev,
-      [activeTrip.id]: [...(prev[activeTrip.id] || []), plan]
+      [activeTrip.id]: editingPlanId
+        ? (prev[activeTrip.id] || []).map(item=>item.id===editingPlanId ? plan : item)
+        : [...(prev[activeTrip.id] || []), plan]
     }));
-    void schedulePlanReminder(plan);
+    if (planReminder) void schedulePlanReminder(plan);
+    else void cancelPlanReminder(plan.id);
+    setEditingPlanId(null);
     setPlanModalDate(null);
   }
 
@@ -1133,6 +1153,12 @@ if (!activeTrip) return null;
 
     if (datePickerMode==="expense") {
       setDate(picked);
+      setDatePickerMode(null);
+      return;
+    }
+
+    if (datePickerMode==="plan") {
+      setPlanModalDate(picked);
       setDatePickerMode(null);
       return;
     }
@@ -1677,6 +1703,7 @@ if (!activeTrip) return null;
             accentSoft={uiAccentSoft}
             onAddForDate={d=>{resetForm();setDate(d);setExpenseView("add");setTab("expense");}}
             onAddPlan={openPlanModal}
+            onEditPlan={openPlanEdit}
             onDeletePlan={deletePlan}
           />
 
@@ -1940,12 +1967,15 @@ if (!activeTrip) return null;
             <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>일정에 저장한 장소는 ‘지도에서 보기’로 바로 열 수 있어요. iPhone은 Apple 지도, Android는 기본 지도/Google 지도를 사용해요.</Text>
             {activePlans.length===0 ? <Text style={[styles.emptyText,isDark&&{color:appearanceColors.muted}]}>아직 일정이 없어요. 달력의 날짜를 눌러 일정을 추가해보세요.</Text> :
               activePlans.map(plan=>(
-                <View key={plan.id} style={[styles.togetripPlanRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
+                <View key={plan.id} style={[styles.togetripPlanRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}> 
                   <View style={[styles.togetripPlanIcon,{backgroundColor:uiAccentSoft}]}><Text>{plan.type==="flight"?"✈️":plan.type==="hotel"?"🏨":"📍"}</Text></View>
                   <View style={styles.flex}>
                     <Text style={[styles.bold,isDark&&{color:appearanceColors.text}]}>{plan.time?`${plan.time} · `:""}{plan.title}</Text>
                     <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>{plan.date}{plan.detail?` · ${String(plan.detail).replace(/\n/g," · ")}`:""}</Text>
                   </View>
+                  <Pressable onPress={()=>openPlanEdit(plan)} style={[styles.planInlineEdit,isDark&&{backgroundColor:appearanceColors.input}]}>
+                    <Text style={[styles.planInlineEditText,isDark&&{color:theme.accent}]}>수정</Text>
+                  </Pressable>
                 </View>
               ))
             }
@@ -2635,8 +2665,11 @@ if (!activeTrip) return null;
           <View style={[styles.planModalCard,isDark&&{backgroundColor:appearanceColors.surface,borderColor:appearanceColors.border,borderWidth:1}]}>
             <View style={styles.planModalHeader}>
               <View>
-                <Text style={styles.planModalTitle}>일정 추가</Text>
-                <Text style={styles.planModalDate}>📅 {planModalDate}</Text>
+                <Text style={styles.planModalTitle}>{editingPlanId ? "일정 수정" : "일정 추가"}</Text>
+                <Pressable onPress={()=>setDatePickerMode("plan")} style={styles.planModalDateButton}>
+                  <Text style={styles.planModalDate}>📅 {planModalDate}</Text>
+                  <Text style={[styles.planModalDateChange,{color:theme.accent}]}>날짜 변경</Text>
+                </Pressable>
               </View>
               <Pressable onPress={()=>setPlanModalDate(null)} style={[styles.dateModalClose,isDark&&{backgroundColor:appearanceColors.surface2}]}>
                 <Text style={styles.dateModalCloseText}>✕</Text>
@@ -2706,7 +2739,7 @@ if (!activeTrip) return null;
               onPress={savePlan}
               style={[styles.planSaveButton,{backgroundColor:theme.accent}]}
             >
-              <Text style={styles.planSaveText}>일정 저장</Text>
+              <Text style={styles.planSaveText}>{editingPlanId ? "수정 저장" : "일정 저장"}</Text>
             </Pressable>
           </View>
         </View>
@@ -2721,8 +2754,10 @@ if (!activeTrip) return null;
               ? (newTripEnd || newTripStart || today())
               : datePickerMode==="start"
                 ? (activeTrip.start || today())
-                : datePickerMode==="end"
+              : datePickerMode==="end"
                   ? (activeTrip.end || activeTrip.start || today())
+                  : datePickerMode==="plan"
+                    ? (planModalDate || today())
                   : date
         }
         title={
@@ -2732,9 +2767,11 @@ if (!activeTrip) return null;
               ? "새 여행 귀국일 선택"
               : datePickerMode==="start"
                 ? "여행 시작일 선택"
-                : datePickerMode==="end"
-                  ? "여행 종료일 선택"
-                  : "지출 날짜 선택"
+              : datePickerMode==="end"
+                ? "여행 종료일 선택"
+                : datePickerMode==="plan"
+                  ? "일정 날짜 선택"
+                : "지출 날짜 선택"
         }
         accent={theme.accent}
         accentSoft={uiAccentSoft}
@@ -3421,6 +3458,8 @@ const styles=StyleSheet.create({
     color:"#7C809B",
     fontWeight:"700"
   },
+  planModalDateButton:{flexDirection:"row",alignItems:"center",gap:8,marginTop:2},
+  planModalDateChange:{fontSize:11,fontWeight:"900"},
   planTypeRow:{
     flexDirection:"row",
     gap:8
@@ -4191,6 +4230,8 @@ const styles=StyleSheet.create({
   togetripAddCircleText:{color:"#FFFFFF",fontSize:24,fontWeight:"700",marginTop:-2},
   togetripPlanRow:{flexDirection:"row",alignItems:"center",gap:10,padding:12,borderRadius:16,borderWidth:1,borderColor:"#EEF0F7",marginTop:8},
   togetripPlanIcon:{width:38,height:38,borderRadius:12,alignItems:"center",justifyContent:"center"},
+  planInlineEdit:{minWidth:44,minHeight:32,paddingHorizontal:8,borderRadius:10,alignItems:"center",justifyContent:"center",backgroundColor:"#EEEEFF"},
+  planInlineEditText:{fontSize:12,fontWeight:"900",color:"#5C5CE2"},
   togetripMoreQuick:{flexDirection:"row",gap:8,marginBottom:12},
   togetripMoreButton:{flex:1,borderRadius:16,paddingVertical:14,alignItems:"center"},
   planReminderRow:{flexDirection:"row",alignItems:"center",gap:10,borderRadius:16,borderWidth:1,borderColor:"#ECEEF5",padding:12,marginTop:10},
