@@ -2308,13 +2308,13 @@ if (!activeTrip) return null;
             <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>색상뿐 아니라 밝기, 배경과 카드 모양까지 취향대로 바꿀 수 있어요. 선택한 꾸미기는 앱을 다시 열어도 유지돼요.</Text>
 
             <Text style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>화면 밝기</Text>
-            <View style={[styles.decorChoiceRow,isCompact&&styles.stackOnCompact]}>
+            <View style={[styles.decorChoiceRow,isCompact&&styles.decorChoiceRowCompact]}>
               {([
                 ["system","📱","시스템"],
                 ["light","☀️","라이트"],
                 ["dark","🌙","다크"],
               ] as [AppearanceMode,string,string][]).map(([id,emoji,label])=>(
-                <Pressable key={id} onPress={()=>setAppearanceMode(id)} style={[styles.decorChoice,{backgroundColor:isDark?appearanceColors.surface2:"#FFFFFF"},appearanceMode===id&&{borderColor:theme.accent,borderWidth:2}]}>
+                <Pressable key={id} onPress={()=>setAppearanceMode(id)} style={[styles.decorChoice,isCompact&&styles.decorChoiceCompact,{backgroundColor:isDark?appearanceColors.surface2:"#FFFFFF"},appearanceMode===id&&{borderColor:theme.accent,borderWidth:2}]}>
                   <Text style={styles.decorChoiceEmoji}>{emoji}</Text>
                   <Text style={[styles.decorChoiceText,isDark&&{color:appearanceColors.text},appearanceMode===id&&{color:theme.accent}]}>{label}</Text>
                 </Pressable>
@@ -2344,13 +2344,14 @@ if (!activeTrip) return null;
             </View>
 
             <Text style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>배경 스타일</Text>
-            <View style={[styles.decorChoiceRow,isCompact&&styles.stackOnCompact]}>
+            <View style={[styles.decorChoiceRow,isCompact&&styles.decorChoiceRowCompact]}>
               {(Object.entries(BACKGROUNDS) as [BackgroundStyleId, typeof BACKGROUNDS[BackgroundStyleId]][]).map(([id,item])=>(
                 <Pressable
                   key={id}
                   onPress={()=>setBackgroundStyleId(id)}
                   style={[
                     styles.decorChoice,
+                    isCompact && styles.decorChoiceCompact,
                     {backgroundColor:id==="theme"?THEMES[themeId].accentSoft:(item.color || "#FFFFFF")},
                     backgroundStyleId===id && {borderColor:theme.accent,borderWidth:2}
                   ]}
@@ -2362,13 +2363,14 @@ if (!activeTrip) return null;
             </View>
 
             <Text style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>카드 모양</Text>
-            <View style={[styles.decorChoiceRow,isCompact&&styles.stackOnCompact]}>
+            <View style={[styles.decorChoiceRow,isCompact&&styles.decorChoiceRowCompact]}>
               {(Object.entries(CARD_STYLES) as [CardStyleId, typeof CARD_STYLES[CardStyleId]][]).map(([id,item])=>(
                 <Pressable
                   key={id}
                   onPress={()=>setCardStyleId(id)}
                   style={[
                     styles.cardPreview,
+                    isCompact && styles.cardPreviewCompact,
                     isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border},
                     {borderRadius:item.radius,shadowOpacity:item.shadowOpacity,elevation:item.elevation},
                     cardStyleId===id && {borderColor:theme.accent,borderWidth:2}
@@ -4011,10 +4013,14 @@ const styles=StyleSheet.create({
   themeGrid:{
     flexDirection:"row",
     flexWrap:"wrap",
-    gap:10
+    gap:10,
+    width:"100%"
   },
   themeOption:{
-    width:"47%",
+    width:"48%",
+    minWidth:0,
+    flexGrow:0,
+    flexShrink:1,
     minHeight:78,
     borderRadius:16,
     padding:10,
@@ -4053,10 +4059,19 @@ const styles=StyleSheet.create({
   },
   decorChoiceRow:{
     flexDirection:"row",
-    gap:8
+    gap:8,
+    width:"100%",
+    alignItems:"stretch"
+  },
+  decorChoiceRowCompact:{
+    flexDirection:"column",
+    alignItems:"stretch"
   },
   decorChoice:{
-    flex:1,
+    width:"31%",
+    minWidth:0,
+    flexGrow:0,
+    flexShrink:1,
     minHeight:60,
     borderRadius:16,
     borderWidth:1,
@@ -4065,8 +4080,14 @@ const styles=StyleSheet.create({
     justifyContent:"center",
     paddingHorizontal:6
   },
+  decorChoiceCompact:{
+    width:"100%"
+  },
   cardPreview:{
-    flex:1,
+    width:"31%",
+    minWidth:0,
+    flexGrow:0,
+    flexShrink:1,
     minHeight:82,
     backgroundColor:"#FFFFFF",
     borderWidth:1,
@@ -4077,6 +4098,9 @@ const styles=StyleSheet.create({
     shadowColor:"#20234A",
     shadowOffset:{width:0,height:5},
     shadowRadius:12
+  },
+  cardPreviewCompact:{
+    width:"100%"
   },
   decorChoiceEmoji:{
     fontSize:18,
