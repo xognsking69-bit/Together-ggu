@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Animated, Easing, Image, Modal, SafeAreaView, ScrollView, Share,
-  StyleSheet, useWindowDimensions, View, Platform
+  StyleSheet, useWindowDimensions, View, Platform, Pressable as RNPressable
 } from "react-native";
 
 import TripCalendar, { type TripPlan } from "../components/trip-calendar";
@@ -17,6 +17,7 @@ import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../co
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
 
 
@@ -31,12 +32,15 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
+const APP_VERSION = Constants.expoConfig?.version || "3.28.9";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
   const driftB = useRef(new Animated.Value(0)).current;
+  const animateBackdrop = Platform.OS === "ios";
 
   useEffect(() => {
+    if (!animateBackdrop) return;
     const loopA = Animated.loop(
       Animated.sequence([
         Animated.timing(driftA, { toValue: 1, duration: 9000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -52,7 +56,7 @@ function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: st
     loopA.start();
     loopB.start();
     return () => { loopA.stop(); loopB.stop(); };
-  }, [driftA, driftB]);
+  }, [animateBackdrop, driftA, driftB]);
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -60,31 +64,31 @@ function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: st
         style={[
           styles.motionBlob,
           styles.motionBlobTop,
-          { backgroundColor: accentSoft, opacity: 0.64, transform: [
+          { backgroundColor: accentSoft, opacity: 0.64, transform: animateBackdrop ? [
             { translateX: driftA.interpolate({ inputRange: [0, 1], outputRange: [-20, 28] }) },
             { translateY: driftA.interpolate({ inputRange: [0, 1], outputRange: [-8, 34] }) },
             { scale: driftA.interpolate({ inputRange: [0, 1], outputRange: [1, 1.09] }) },
-          ] },
+          ] : undefined },
         ]}
       />
       <Animated.View
         style={[
           styles.motionBlob,
           styles.motionBlobBottom,
-          { backgroundColor: accentSoft, opacity: 0.48, transform: [
+          { backgroundColor: accentSoft, opacity: 0.48, transform: animateBackdrop ? [
             { translateX: driftB.interpolate({ inputRange: [0, 1], outputRange: [24, -32] }) },
             { translateY: driftB.interpolate({ inputRange: [0, 1], outputRange: [20, -24] }) },
             { scale: driftB.interpolate({ inputRange: [0, 1], outputRange: [1.05, 0.96] }) },
-          ] },
+          ] : undefined },
         ]}
       />
       <Animated.View
         style={[
           styles.textureField,
-          { transform: [
+          { transform: animateBackdrop ? [
             { translateX: driftB.interpolate({ inputRange: [0, 1], outputRange: [-8, 12] }) },
             { translateY: driftA.interpolate({ inputRange: [0, 1], outputRange: [8, -12] }) },
-          ] },
+          ] : undefined },
         ]}
       >
         {[0,1,2,3,4,5,6,7].map((i) => (
@@ -139,7 +143,7 @@ const INITIAL: AppState = {
   trips: [first],
 };
 
-type Tab = "home" | "schedule" | "expense" | "game" | "settle" | "manage";
+type Tab = "home" | "schedule" | "expense" | "companions" | "game" | "settle" | "manage";
 type ExpenseView = "add" | "list";
 type ManageSection = "checklist" | "shared" | "decorate" | "backup" | "profile";
 
@@ -552,16 +556,9 @@ function IndexContent() {
     const interval=setInterval(syncNow,5000);
     return ()=>clearInterval(interval);
   }, [activeTrip.id, activeSharedRoom?.code, activeSharedRoom?.token, activeSharedFingerprint, ready, sharedRoomsReady]);
-  const todayKey = today();
   const recentExpenses = useMemo(
     () => [...activeTrip.expenses].slice(-3).reverse(),
     [activeTrip.expenses]
-  );
-  const todayPlans = useMemo(
-    () => activePlans
-      .filter(plan => plan.date === todayKey)
-      .sort((a,b)=>(a.time || "99:99").localeCompare(b.time || "99:99")),
-    [activePlans, todayKey]
   );
   const peopleNameMap = useMemo(
     () => Object.fromEntries(activeTrip.people.map(p=>[p.id,p.name])),
@@ -1163,7 +1160,7 @@ if (!activeTrip) return null;
   async function shareBackup() {
     const backup = {
       app: "Togetrip",
-      version: "V3.28.1",
+      version: `V${APP_VERSION}`,
       exportedAt: new Date().toISOString(),
       state,
       appearance: {
@@ -1582,7 +1579,7 @@ if (!activeTrip) return null;
         setPayerId(imported.people[0]?.id || state.profile.id);
         setDate(imported.start || today());
         setSharedInviteText("");
-        setTab("home");
+        setTab("companions");
         setSharedStatus("synced");
         setSharedStatusText("실시간 공동 여행방에 연결됐어요.");
         Alert.alert("공동 여행방 연결 완료", "이제 이 여행의 동행인·지출·일정 변경이 자동으로 동기화돼요.");
@@ -1615,7 +1612,7 @@ if (!activeTrip) return null;
       setPayerId(imported.people.some(p=>p.id===state.profile.id) ? state.profile.id : imported.people[0]?.id || state.profile.id);
       setDate(imported.start || today());
       setSharedInviteText("");
-      setTab("home");
+      setTab("companions");
       Alert.alert("공동 여행 추가 완료", "사본 형태의 초대 여행을 새 여행으로 추가했어요.");
     } catch {
       Alert.alert("초대코드 오류", "초대코드가 손상되었거나 지원하지 않는 형식이에요.");
@@ -1660,56 +1657,15 @@ if (!activeTrip) return null;
   return (
     <SafeAreaView style={[styles.safe,{backgroundColor:screenBackground}]}>
       <MotionBackdrop accent={theme.accent} accentSoft={uiAccentSoft} />
-      <ScrollView contentContainerStyle={[styles.content,{paddingHorizontal:horizontalPadding,maxWidth:contentMaxWidth,width:"100%",alignSelf:"center"}]}>
-        <View style={[styles.appHeader,isDark&&{backgroundColor:"rgba(13,24,37,0.92)",borderColor:appearanceColors.border}]}>
-          <View style={[styles.appBrandIcon,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.34):"transparent"}]}><Text style={styles.appBrandEmoji}>🏝️</Text></View>
-          <View style={styles.appBrandCopy}>
-            <Text style={styles.appBrandName}>Togetrip</Text>
-            {!isTiny&&<Text style={styles.appBrandTagline}>함께 가는 여행 · 정산은 정확하게</Text>}
-          </View>
-          <View style={styles.appHeaderActions}>
-            <View style={[styles.versionPill,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.32):"transparent"}]}>
-              <Text style={[styles.version,{color:theme.accent}]}>V3.28.1</Text>
-            </View>
-          </View>
-        </View>
-
+      <ScrollView keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS==="android"} contentContainerStyle={[styles.content,{paddingHorizontal:horizontalPadding,maxWidth:contentMaxWidth,width:"100%",alignSelf:"center"}]}>
         <Animated.View style={{
+          width:"100%",
           opacity: screenMotion,
           transform: [
             { translateY: screenMotion.interpolate({ inputRange:[0,1], outputRange:[8,0] }) },
           ],
         }}>
         {tab==="home" && <>
-          <View style={[styles.togetripHero,{backgroundColor:uiAccentSoft,borderColor:isDark?appearanceColors.border:"#EEF0F7"}]}>
-            <View style={styles.flex}>
-              <Text style={[styles.togetripHeroEyebrow,{color:theme.accent}]}>✈️ TOGETRIP</Text>
-              <Text style={[styles.togetripHeroTitle,isDark&&{color:appearanceColors.text}]}>{activeTrip.name || "우리 여행"}</Text>
-              <Text style={[styles.togetripHeroMeta,isDark&&{color:appearanceColors.muted}]}>
-                {[activeTrip.start,activeTrip.end].filter(Boolean).join(" ~ ") || "여행 날짜를 설정해보세요"} · {activeTrip.people.length}명
-              </Text>
-            </View>
-            <View style={[styles.togetripHeroBadge,{backgroundColor:isDark?appearanceColors.surface2:"#FFFFFF"}]}>
-              <Text style={styles.togetripHeroBadgeIcon}>🌅</Text>
-            </View>
-          </View>
-
-          <View style={styles.togetripQuickGrid}>
-            {[
-              ["＋","지출 추가",()=>{resetForm();setExpenseView("add");setTab("expense");}],
-              ["💸","정산하기",()=>setTab("settle")],
-              ["📅","일정 관리",()=>setTab("schedule")],
-              ["🧾","영수증 AI",()=>{resetForm();setExpenseView("add");setTab("expense");}],
-              ["📍","지도 보기",()=>setTab("schedule")],
-              ["🎮","게임하기",()=>setTab("game")],
-            ].map(([icon,label,action]:any)=>(
-              <Pressable key={label} onPress={action} style={[styles.togetripQuickButton,isDark&&{backgroundColor:appearanceColors.surface,borderColor:appearanceColors.border}]}>
-                <Text style={styles.togetripQuickIcon}>{icon}</Text>
-                <Text style={[styles.togetripQuickLabel,isDark&&{color:appearanceColors.text}]}>{label}</Text>
-              </Pressable>
-            ))}
-          </View>
-
           <TripCalendar
             expenses={activeTrip.expenses}
             people={activeTrip.people}
@@ -1724,6 +1680,7 @@ if (!activeTrip) return null;
             onDeletePlan={deletePlan}
           />
 
+          {false && <>
           <Card cardStyle={cardDecorStyle} title="🧭 여행 설정">
             <Text style={[styles.homeCompanionSubtitle,isDark&&{color:appearanceColors.muted}]}>여행을 선택하거나 새 여행을 만들고 기본 설정을 관리해요.</Text>
             <View style={[styles.tripSelectorShell,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
@@ -1753,6 +1710,8 @@ if (!activeTrip) return null;
               </Pressable>
             </View>
           </Card>
+          </>}
+          {false && <>
           <Card cardStyle={cardDecorStyle} title="👥 동행인 관리">
             <Text style={styles.homeCompanionSubtitle}>현재 여행과 함께하는 사람을 한눈에 관리해요.</Text>
             <View style={styles.homeTripSectionHeader}>
@@ -1841,6 +1800,7 @@ if (!activeTrip) return null;
               </Text>
             </Pressable>
           </Card>
+          </>}
 
           <View style={[styles.heroCard,{backgroundColor:theme.accent}]}>
             <View style={styles.heroTop}>
@@ -1943,40 +1903,6 @@ if (!activeTrip) return null;
             )}
           </Card>
 
-          <Card cardStyle={cardDecorStyle} title="오늘 일정">
-            {todayPlans.length===0 ? (
-              <View style={styles.todayEmpty}>
-                <View style={[styles.todayIconBox,{backgroundColor:uiAccentSoft}]}>
-                  <Text style={styles.todayIcon}>🗓️</Text>
-                </View>
-                <View style={styles.flex}>
-                  <Text style={styles.todayEmptyTitle}>오늘 등록된 일정이 없어요</Text>
-                  <Text style={styles.muted}>달력에서 날짜를 눌러 항공·숙소·여행 일정을 추가할 수 있어요.</Text>
-                </View>
-              </View>
-            ) : (
-              todayPlans.slice(0,3).map(plan=>(
-                <View key={plan.id} style={styles.todayPlanRow}>
-                  <View style={[styles.todayTimeBox,{backgroundColor:uiAccentSoft}]}>
-                    <Text style={[styles.todayTime,{color:theme.accent}]}>{plan.time || "일정"}</Text>
-                  </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.todayPlanTitle}>
-                      {plan.type==="flight"?"✈️":plan.type==="hotel"?"🏨":"📍"} {plan.title}
-                    </Text>
-                    {!!plan.detail && <Text style={styles.todayPlanDetail} numberOfLines={1}>{plan.detail}</Text>}
-                  </View>
-                </View>
-              ))
-            )}
-            <Pressable
-              onPress={()=>openPlanModal(todayKey)}
-              style={[styles.todayAddButton,{backgroundColor:uiAccentSoft}]}
-            >
-              <Text style={[styles.todayAddText,{color:theme.accent}]}>＋ 오늘 일정 추가</Text>
-            </Pressable>
-          </Card>
-
           <Card cardStyle={cardDecorStyle} title="최근 지출">
             {!activeTrip.expenses.length && (
               <Text style={styles.muted}>아직 지출이 없어요. 첫 지출을 기록해보세요.</Text>
@@ -1997,20 +1923,6 @@ if (!activeTrip) return null;
                 </Pressable>
               );
             })}
-            <View style={[styles.homeQuickRow,isCompact&&styles.stackOnCompact]}>
-              <Pressable
-                onPress={()=>{resetForm();setExpenseView("add");setTab("expense");}}
-                style={[styles.homeQuickButton,{backgroundColor:theme.accent}]}
-              >
-                <Text style={styles.homeQuickButtonPrimary}>＋ 지출 추가</Text>
-              </Pressable>
-              <Pressable
-                onPress={()=>{setExpenseView("list");setTab("expense");}}
-                style={[styles.homeQuickButton,{backgroundColor:uiAccentSoft}]}
-              >
-                <Text style={[styles.homeQuickButtonSecondary,{color:theme.accent}]}>전체 내역</Text>
-              </Pressable>
-            </View>
           </Card>
         </>}
 
@@ -2024,19 +1936,6 @@ if (!activeTrip) return null;
               <Text style={styles.togetripAddCircleText}>＋</Text>
             </Pressable>
           </View>
-          <TripCalendar
-            expenses={activeTrip.expenses}
-            people={activeTrip.people}
-            initialDate={activeTrip.start||today()}
-            startDate={activeTrip.start}
-            endDate={activeTrip.end}
-            plans={activePlans}
-            accent={theme.accent}
-            accentSoft={uiAccentSoft}
-            onAddForDate={d=>{resetForm();setDate(d);setExpenseView("add");setTab("expense");}}
-            onAddPlan={openPlanModal}
-            onDeletePlan={deletePlan}
-          />
           <Card cardStyle={cardDecorStyle} title="📍 일정 · 지도">
             <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>일정에 저장한 장소는 ‘지도에서 보기’로 바로 열 수 있어요. iPhone은 Apple 지도, Android는 기본 지도/Google 지도를 사용해요.</Text>
             {activePlans.length===0 ? <Text style={[styles.emptyText,isDark&&{color:appearanceColors.muted}]}>아직 일정이 없어요. 달력의 날짜를 눌러 일정을 추가해보세요.</Text> :
@@ -2172,6 +2071,52 @@ if (!activeTrip) return null;
         </Card>          </>}
         </>}
 
+        {tab==="companions" && <>
+          <View style={styles.companionIntro}>
+            <View style={styles.flex}>
+              <Text style={[styles.companionTitle,isDark&&{color:appearanceColors.text}]}>동행자</Text>
+              <Text style={[styles.companionSubtitle,isDark&&{color:appearanceColors.muted}]}>멤버와 공동 여행방을 한곳에서 관리해요.</Text>
+            </View>
+            <Pressable onPress={addTrip} style={[styles.companionAddTrip,{backgroundColor:uiAccentSoft}]}>
+              <Text style={[styles.companionAddTripText,{color:theme.accent}]}>＋ 새 여행</Text>
+            </Pressable>
+          </View>
+
+          <Card cardStyle={cardDecorStyle} title="현재 여행">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tripRow}>
+              {state.trips.map(trip=><Pressable key={trip.id} onPress={()=>selectTrip(trip.id)} style={[styles.tripChip,isDark&&trip.id!==state.activeTripId&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border,borderWidth:1},trip.id===state.activeTripId&&{backgroundColor:theme.accent}]}><Text style={trip.id===state.activeTripId?styles.tripChipActiveText:styles.bold}>{trip.name||"여행"}</Text></Pressable>)}
+            </ScrollView>
+            <View style={[styles.companionTripSummary,{backgroundColor:uiAccentSoft}]}>
+              <View style={styles.flex}><Text style={styles.companionTripName}>{activeTrip.name||"우리 여행"}</Text><Text style={styles.companionTripMeta}>{[activeTrip.start,activeTrip.end].filter(Boolean).join(" ~ ")||"날짜 미설정"} · {activeTrip.people.length}명</Text></View>
+              <Pressable onPress={()=>setDatePickerMode("start")} style={styles.companionSettingsButton}><Text style={[styles.companionSettingsText,{color:theme.accent}]}>날짜 설정</Text></Pressable>
+            </View>
+          </Card>
+
+          <Card cardStyle={cardDecorStyle} title="여행공동방">
+            <Text style={[styles.companionSubtitle,isDark&&{color:appearanceColors.muted}]}>초대 코드로 연결하면 일정·지출·정산을 함께 관리할 수 있어요.</Text>
+            <View style={[styles.sharedRoomBanner,{backgroundColor:uiAccentSoft,borderColor:isDark?appearanceColors.border:theme.accentSoft}]}>
+              <Text style={[styles.sharedRoomTitle,{color:theme.accent}]}>{activeSharedRoom?"● 공동방 연결됨":"○ 아직 연결되지 않음"}</Text>
+              <Text style={[styles.sharedRoomMeta,isDark&&{color:appearanceColors.muted}]}>{activeSharedRoom?`방 코드 ${activeSharedRoom.code} · ${sharedStatusText||"자동 동기화 중"}`:"공동방을 만들거나 받은 초대코드를 입력하세요."}</Text>
+            </View>
+            <View style={styles.companionRoomActions}>
+              {!activeSharedRoom&&<Pressable disabled={sharedStatus==="creating"} onPress={createLiveSharedRoom} style={[styles.companionRoomPrimary,{backgroundColor:theme.accent}]}><Text style={styles.primaryText}>{sharedStatus==="creating"?"만드는 중…":"공동방 만들기"}</Text></Pressable>}
+              {activeSharedRoom&&<Pressable onPress={()=>shareLiveInvite(activeSharedRoom)} style={[styles.companionRoomPrimary,{backgroundColor:theme.accent}]}><Text style={styles.primaryText}>초대 보내기</Text></Pressable>}
+              <Pressable onPress={()=>{setOpenManageSection("shared");setTab("manage");}} style={[styles.companionRoomSecondary,{borderColor:theme.accent}]}><Text style={[styles.companionRoomSecondaryText,{color:theme.accent}]}>초대코드 입력</Text></Pressable>
+            </View>
+          </Card>
+
+          <Card cardStyle={cardDecorStyle} title={`동행자 목록 · ${activeTrip.people.length}명`}>
+            <View style={styles.homePeopleList}>
+              {activeTrip.people.map(p=><View key={p.id} style={[styles.homePersonRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
+                <Pressable onPress={()=>pickProfilePhoto(p.id)} style={[styles.avatarButton,{backgroundColor:uiAccentSoft}]}>{profilePhotos[p.id]?<Image source={{uri:profilePhotos[p.id]}} style={styles.avatarImage}/>:<Text style={[styles.avatarInitial,{color:theme.accent}]}>{(p.name||"나").trim().slice(0,1)}</Text>}</Pressable>
+                <View style={styles.flex}><Text style={styles.homePersonName}>{p.id===state.profile.id?`${p.name} · 나`:p.name}</Text><Text style={styles.homePersonPhotoHint}>{p.id===state.profile.id?"여행 관리자":"동행자"}</Text></View>
+                {p.id!==state.profile.id&&<Pressable onPress={()=>removePerson(p.id)} style={[styles.homePersonDeleteButton,isDark&&{backgroundColor:appearanceColors.dangerSurface,borderColor:appearanceColors.dangerBorder}]}><Text style={styles.homePersonDeleteText}>삭제</Text></Pressable>}
+              </View>)}
+            </View>
+            <View style={[styles.homePersonAddRow,isCompact&&styles.stackOnCompact]}><TextInput style={[styles.input,styles.flex]} value={personName} onChangeText={setPersonName} onSubmitEditing={addPerson} returnKeyType="done" placeholder="동행자 이름"/><Pressable onPress={addPerson} style={[styles.homePersonAddButton,{backgroundColor:theme.accent}]}><Text style={styles.homePersonAddButtonText}>추가</Text></Pressable></View>
+          </Card>
+        </>}
+
         {tab==="game" && <GameZone
           people={activeTrip.people}
           accent={theme.accent}
@@ -2189,7 +2134,7 @@ if (!activeTrip) return null;
 
         {tab==="manage" && <>
           <View style={styles.manageIntro}>
-            <Text style={[styles.manageTitle,isDark&&{color:appearanceColors.text}]}>여행 관리</Text>
+            <View style={styles.rowBetween}><Text style={[styles.manageTitle,isDark&&{color:appearanceColors.text}]}>여행 관리</Text><Text style={[styles.manageVersion,{color:theme.accent}]}>V{APP_VERSION}</Text></View>
             <Text style={[styles.manageSubtitle,isDark&&{color:appearanceColors.muted}]}>준비물, 공동 여행방, 백업과 내 정보를 관리해요.</Text>
           </View>
           <View style={styles.togetripMoreQuick}>
@@ -2320,7 +2265,7 @@ if (!activeTrip) return null;
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
               <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
-            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V3.28.1 · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
+            <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V{APP_VERSION} · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
 
           <ManageGroup
@@ -2798,11 +2743,11 @@ if (!activeTrip) return null;
       />
 
       <View style={[styles.tabs,isDark&&{backgroundColor:appearanceColors.nav,borderColor:appearanceColors.border,borderWidth:1},isTiny&&styles.tabsTiny,{left:navInset,right:navInset,bottom:isTiny?5:isCompact?6:8}]}>
-        <TabButton label="🏠 홈" active={tab==="home"} onPress={()=>setTab("home")}/>
-        <TabButton label="📅 일정" active={tab==="schedule"} onPress={()=>setTab("schedule")}/>
-        <TabButton label="＋ 지출" active={tab==="expense"} onPress={()=>{if(!editingId)resetForm();setExpenseView("add");setTab("expense");}}/>
-        <TabButton label="👥 동행자" active={tab==="home"} onPress={()=>setTab("home")}/>
-        <TabButton label="••• 더보기" active={tab==="manage"||tab==="game"||tab==="settle"} onPress={()=>setTab("manage")}/>
+        <TabButton icon="🏠" label="홈" active={tab==="home"} onPress={()=>setTab("home")}/>
+        <TabButton icon="🗓️" label="일정" active={tab==="schedule"} onPress={()=>setTab("schedule")}/>
+        <TabButton icon="＋" label="지출" active={tab==="expense"} onPress={()=>{if(!editingId)resetForm();setExpenseView("add");setTab("expense");}}/>
+        <TabButton icon="👥" label="동행자" active={tab==="companions"} onPress={()=>setTab("companions")}/>
+        <TabButton icon="•••" label="더보기" active={tab==="manage"||tab==="game"||tab==="settle"} onPress={()=>setTab("manage")}/>
       </View>
     </SafeAreaView>
   );
@@ -2901,7 +2846,7 @@ function DatePickerModal({
               const selected = dateValue===safeDate;
               const isToday = dateValue===todayValue;
               return (
-                <Pressable
+                <RNPressable
                   key={dateValue}
                   onPress={()=>onSelect(dateValue)}
                   style={[
@@ -2919,7 +2864,7 @@ function DatePickerModal({
                   >
                     {day}
                   </Text>
-                </Pressable>
+                </RNPressable>
               );
             })}
           </View>
@@ -2991,7 +2936,7 @@ function Stat({label,value}:{label:string;value:string}){const {isDark,colors}=u
 function Field(props:React.ComponentProps<typeof TextInput>&{label:string}){const{label,...rest}=props;const{isDark,colors}=useAppAppearance();return <View><Text style={styles.label}>{label}</Text><TextInput style={[styles.input,isDark&&{backgroundColor:colors.input,borderColor:colors.border}]} {...rest}/></View>}
 function Chip({text,selected,onPress}:{text:string;selected:boolean;onPress:()=>void}){const{isDark,colors}=useAppAppearance();return <Pressable onPress={onPress} style={[styles.chip,isDark&&!selected&&{backgroundColor:colors.surface2,borderColor:colors.border,borderWidth:1},selected&&styles.chipSelected]}><Text style={selected?styles.chipSelectedText:undefined}>{text}</Text></Pressable>}
 function Primary({text,onPress,full}:{text:string;onPress:()=>void;full?:boolean}){return <Pressable onPress={onPress} style={[styles.primary,full&&{width:"100%",marginTop:18}]}><Text style={styles.primaryText}>{text}</Text></Pressable>}
-function TabButton({label,active,onPress}:{label:string;active:boolean;onPress:()=>void}){const{isDark}=useAppAppearance();return <Pressable onPress={onPress} style={[styles.tab,active&&styles.tabActive,isDark&&active&&{backgroundColor:"rgba(80,140,255,0.18)"}]}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={[styles.tabText,active&&styles.bold]}>{label}</Text></Pressable>}
+function TabButton({icon,label,active,onPress}:{icon:string;label:string;active:boolean;onPress:()=>void}){const{isDark}=useAppAppearance();return <Pressable accessibilityRole="tab" accessibilityLabel={`${label} 탭`} accessibilityState={{selected:active}} hitSlop={3} onPress={onPress} style={[styles.tab,active&&styles.tabActive,isDark&&active&&{backgroundColor:"rgba(80,140,255,0.18)"}]}><Text style={[styles.tabIcon,active&&styles.tabIconActive]}>{icon}</Text><Text numberOfLines={1} style={[styles.tabText,active&&styles.tabTextActive]}>{label}</Text></Pressable>}
 
 const styles=StyleSheet.create({
   sharedRoomBanner:{marginTop:14,borderRadius:18,borderWidth:1,padding:14},
@@ -3626,19 +3571,22 @@ const styles=StyleSheet.create({
   dateSaturday:{color:"#4B79C6"},
   dateGrid:{
     flexDirection:"row",
-    flexWrap:"wrap"
+    flexWrap:"wrap",
+    alignContent:"flex-start",
+    minHeight:264
   },
   dateCell:{
     width:"14.2857%",
-    aspectRatio:1,
-    borderRadius:999,
+    height:44,
+    borderRadius:14,
     alignItems:"center",
     justifyContent:"center",
-    marginVertical:2
+    marginVertical:0
   },
   dateCellText:{
-    fontSize:13,
-    fontWeight:"700",
+    fontSize:14,
+    lineHeight:20,
+    fontWeight:"800",
     color:"#30334D"
   },
   dateCellSelectedText:{
@@ -3655,53 +3603,6 @@ const styles=StyleSheet.create({
     fontSize:12,
     fontWeight:"900"
   },
-  todayEmpty:{
-    flexDirection:"row",
-    alignItems:"center",
-    gap:11,
-    paddingVertical:4
-  },
-  todayIconBox:{
-    width:46,
-    height:46,
-    borderRadius:15,
-    alignItems:"center",
-    justifyContent:"center"
-  },
-  todayIcon:{fontSize:22},
-  todayEmptyTitle:{
-    fontSize:13,
-    fontWeight:"900",
-    color:"#292C48",
-    marginBottom:2
-  },
-  todayPlanRow:{
-    minHeight:58,
-    flexDirection:"row",
-    alignItems:"center",
-    gap:10,
-    paddingVertical:8,
-    borderBottomWidth:StyleSheet.hairlineWidth,
-    borderBottomColor:"#ECEEF6"
-  },
-  todayTimeBox:{
-    minWidth:58,
-    paddingHorizontal:8,
-    paddingVertical:8,
-    borderRadius:12,
-    alignItems:"center"
-  },
-  todayTime:{fontSize:10,fontWeight:"900"},
-  todayPlanTitle:{fontSize:13,fontWeight:"900",color:"#20223F"},
-  todayPlanDetail:{marginTop:3,fontSize:10,color:"#8589A5"},
-  todayAddButton:{
-    marginTop:11,
-    minHeight:40,
-    borderRadius:13,
-    alignItems:"center",
-    justifyContent:"center"
-  },
-  todayAddText:{fontSize:11,fontWeight:"900"},
   manageGroupHeader:{
     flexDirection:"row",
     alignItems:"center",
@@ -3938,27 +3839,6 @@ const styles=StyleSheet.create({
     fontWeight:"900",
     color:"#20223F"
   },
-  homeQuickRow:{
-    flexDirection:"row",
-    gap:9,
-    marginTop:13
-  },
-  homeQuickButton:{
-    flex:1,
-    minHeight:44,
-    borderRadius:14,
-    alignItems:"center",
-    justifyContent:"center"
-  },
-  homeQuickButtonPrimary:{
-    color:"#FFFFFF",
-    fontSize:12,
-    fontWeight:"900"
-  },
-  homeQuickButtonSecondary:{
-    fontSize:12,
-    fontWeight:"900"
-  },
   manageIntro:{
     paddingHorizontal:4,
     paddingTop:2,
@@ -3970,6 +3850,7 @@ const styles=StyleSheet.create({
     letterSpacing:-0.5,
     color:"#1B1D3A"
   },
+  manageVersion:{fontSize:11,fontWeight:"900",paddingHorizontal:10,paddingVertical:6,borderRadius:999,backgroundColor:"rgba(92,92,226,0.10)"},
   manageSubtitle:{
     marginTop:5,
     fontSize:12,
@@ -3984,8 +3865,9 @@ const styles=StyleSheet.create({
     bottom:8,
     flexDirection:"row",
     backgroundColor:"#FFFFFF",
-    padding:6,
-    borderRadius:22,
+    padding:7,
+    minHeight:76,
+    borderRadius:26,
     shadowColor:"#20234A",
     shadowOffset:{width:0,height:7},
     shadowOpacity:0.14,
@@ -4000,7 +3882,7 @@ const styles=StyleSheet.create({
     flex:1,
     alignItems:"center",
     justifyContent:"center",
-    paddingVertical:11,
+    paddingVertical:8,
     paddingHorizontal:2,
     borderRadius:16
   },
@@ -4009,9 +3891,12 @@ const styles=StyleSheet.create({
   },
   tabText:{
     color:"#8A8EAA",
-    fontSize:10.5,
+    fontSize:12,
     fontWeight:"800"
   },
+  tabTextActive:{color:"#5C5CE2",fontWeight:"900"},
+  tabIcon:{color:"#8A8EAA",fontSize:19,fontWeight:"900",lineHeight:23,marginBottom:2},
+  tabIconActive:{color:"#5C5CE2"},
   tripRow:{
     flexDirection:"row",
     gap:9,
@@ -4267,16 +4152,37 @@ const styles=StyleSheet.create({
     color:"#9699AB"
   },
 
+  homeCompactTop:{flexDirection:"row",alignItems:"center",gap:12,paddingHorizontal:4,paddingTop:8,paddingBottom:14},
+  homeCompactTitle:{fontSize:24,fontWeight:"900",letterSpacing:-0.5,color:"#171B2D"},
+  homeCompactMeta:{fontSize:12,fontWeight:"700",color:"#7B8095",marginTop:4},
+  homeCompactManage:{minHeight:40,borderRadius:14,paddingHorizontal:14,alignItems:"center",justifyContent:"center"},
+  homeCompactManageText:{fontSize:12,fontWeight:"900"},
   togetripHero:{flexDirection:"row",alignItems:"center",gap:12,borderRadius:24,borderWidth:1,padding:18,marginBottom:12,overflow:"hidden"},
   togetripHeroEyebrow:{fontSize:11,fontWeight:"800",letterSpacing:1.2,marginBottom:4},
   togetripHeroTitle:{fontSize:22,fontWeight:"900",color:"#171B2D",marginBottom:4},
   togetripHeroMeta:{fontSize:12,color:"#7B8095",fontWeight:"600"},
   togetripHeroBadge:{width:58,height:58,borderRadius:20,alignItems:"center",justifyContent:"center"},
   togetripHeroBadgeIcon:{fontSize:28},
-  togetripQuickGrid:{flexDirection:"row",flexWrap:"wrap",gap:8,marginBottom:12},
-  togetripQuickButton:{width:"31.5%",minHeight:76,borderRadius:18,borderWidth:1,borderColor:"#EEF0F7",backgroundColor:"#FFFFFF",alignItems:"center",justifyContent:"center",padding:8},
-  togetripQuickIcon:{fontSize:21,marginBottom:5},
-  togetripQuickLabel:{fontSize:11,fontWeight:"800",color:"#353A4F",textAlign:"center"},
+  togetripQuickGrid:{flexDirection:"row",flexWrap:"wrap",gap:10,marginBottom:14},
+  togetripQuickButton:{flexBasis:"47%",flexGrow:1,minHeight:72,borderRadius:20,borderWidth:1,borderColor:"#EEF0F7",backgroundColor:"#FFFFFF",flexDirection:"row",alignItems:"center",gap:10,paddingHorizontal:12,paddingVertical:11},
+  togetripQuickIconWrap:{width:38,height:38,borderRadius:13,alignItems:"center",justifyContent:"center"},
+  togetripQuickIcon:{fontSize:19},
+  togetripQuickLabel:{fontSize:13,fontWeight:"900",color:"#353A4F"},
+  togetripQuickHint:{fontSize:10.5,fontWeight:"700",color:"#9195A8",marginTop:3},
+  companionIntro:{flexDirection:"row",alignItems:"center",gap:12,paddingHorizontal:4,paddingTop:4,paddingBottom:12},
+  companionTitle:{fontSize:26,fontWeight:"900",letterSpacing:-0.5,color:"#171B2D"},
+  companionSubtitle:{fontSize:12,lineHeight:18,fontWeight:"700",color:"#8589A5",marginTop:4},
+  companionAddTrip:{borderRadius:14,paddingHorizontal:12,paddingVertical:10},
+  companionAddTripText:{fontSize:12,fontWeight:"900"},
+  companionTripSummary:{flexDirection:"row",alignItems:"center",gap:12,borderRadius:18,padding:14,marginTop:14},
+  companionTripName:{fontSize:16,fontWeight:"900",color:"#20233D"},
+  companionTripMeta:{fontSize:11.5,fontWeight:"700",color:"#7F849B",marginTop:4},
+  companionSettingsButton:{backgroundColor:"#FFFFFF",borderRadius:12,paddingHorizontal:12,paddingVertical:9},
+  companionSettingsText:{fontSize:11.5,fontWeight:"900"},
+  companionRoomActions:{flexDirection:"row",gap:9,marginTop:12},
+  companionRoomPrimary:{flex:1,minHeight:46,borderRadius:15,alignItems:"center",justifyContent:"center"},
+  companionRoomSecondary:{flex:1,minHeight:46,borderRadius:15,borderWidth:1,alignItems:"center",justifyContent:"center"},
+  companionRoomSecondaryText:{fontSize:12,fontWeight:"900"},
   togetripSectionHead:{flexDirection:"row",alignItems:"center",marginBottom:12,paddingHorizontal:2},
   togetripScreenTitle:{fontSize:23,fontWeight:"900",color:"#171B2D"},
   togetripScreenSub:{fontSize:12,color:"#85899A",marginTop:3},
