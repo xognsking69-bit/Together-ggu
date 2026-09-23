@@ -32,7 +32,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.9";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.11";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -2779,7 +2779,7 @@ if (!activeTrip) return null;
         onSelect={applyPickedDate}
       />
 
-      <View style={[styles.tabs,isDark&&{backgroundColor:appearanceColors.nav,borderColor:appearanceColors.border,borderWidth:1},isTiny&&styles.tabsTiny,{left:navInset,right:navInset,bottom:isTiny?5:isCompact?6:8}]}>
+      <View style={[styles.tabs,isDark&&{backgroundColor:appearanceColors.nav,borderColor:appearanceColors.border,borderWidth:1},isTiny&&styles.tabsTiny,{left:navInset,width:width-navInset*2,bottom:isTiny?5:isCompact?6:8}]}>
         <TabButton icon="🏠" label="홈" active={tab==="home"} onPress={()=>setTab("home")}/>
         <TabButton icon="🗓️" label="일정" active={tab==="schedule"} onPress={()=>setTab("schedule")}/>
         <TabButton icon="＋" label="지출" active={tab==="expense"} onPress={()=>{if(!editingId)resetForm();setExpenseView("add");setTab("expense");}}/>
@@ -3900,7 +3900,6 @@ const styles=StyleSheet.create({
   tabs:{
     position:"absolute",
     left:10,
-    right:10,
     bottom:8,
     flexDirection:"row",
     backgroundColor:"#FFFFFF",
@@ -3918,7 +3917,8 @@ const styles=StyleSheet.create({
     borderRadius:19
   },
   tab:{
-    flex:1,
+    width:"20%",
+    minWidth:0,
     alignItems:"center",
     justifyContent:"center",
     paddingVertical:10,
