@@ -32,7 +32,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.11";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.12";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -2781,7 +2781,7 @@ if (!activeTrip) return null;
         onSelect={applyPickedDate}
       />
 
-      <View style={[styles.tabs,isDark&&{backgroundColor:appearanceColors.nav,borderColor:appearanceColors.border,borderWidth:1},isTiny&&styles.tabsTiny,{left:navInset,width:width-navInset*2,bottom:isTiny?5:isCompact?6:8}]}>
+      <View style={[styles.tabs,isDark&&{backgroundColor:appearanceColors.nav,borderColor:appearanceColors.border,borderWidth:1},isTiny&&styles.tabsTiny,{left:navInset,right:navInset,bottom:isTiny?5:isCompact?6:8}]}>
         <TabButton icon="🏠" label="홈" active={tab==="home"} onPress={()=>setTab("home")}/>
         <TabButton icon="🗓️" label="일정" active={tab==="schedule"} onPress={()=>setTab("schedule")}/>
         <TabButton icon="＋" label="지출" active={tab==="expense"} onPress={()=>{if(!editingId)resetForm();setExpenseView("add");setTab("expense");}}/>
@@ -2975,7 +2975,7 @@ function Stat({label,value}:{label:string;value:string}){const {isDark,colors}=u
 function Field(props:React.ComponentProps<typeof TextInput>&{label:string}){const{label,...rest}=props;const{isDark,colors}=useAppAppearance();return <View><Text style={styles.label}>{label}</Text><TextInput style={[styles.input,isDark&&{backgroundColor:colors.input,borderColor:colors.border}]} {...rest}/></View>}
 function Chip({text,selected,onPress}:{text:string;selected:boolean;onPress:()=>void}){const{isDark,colors}=useAppAppearance();return <Pressable onPress={onPress} style={[styles.chip,isDark&&!selected&&{backgroundColor:colors.surface2,borderColor:colors.border,borderWidth:1},selected&&styles.chipSelected]}><Text style={selected?styles.chipSelectedText:undefined}>{text}</Text></Pressable>}
 function Primary({text,onPress,full}:{text:string;onPress:()=>void;full?:boolean}){return <Pressable onPress={onPress} style={[styles.primary,full&&{width:"100%",marginTop:18}]}><Text style={styles.primaryText}>{text}</Text></Pressable>}
-function TabButton({icon,label,active,onPress}:{icon:string;label:string;active:boolean;onPress:()=>void}){const{isDark}=useAppAppearance();return <Pressable accessibilityRole="tab" accessibilityLabel={`${label} 탭`} accessibilityState={{selected:active}} hitSlop={3} onPress={onPress} style={[styles.tab,active&&styles.tabActive,isDark&&active&&{backgroundColor:"rgba(80,140,255,0.18)"}]}><Text style={[styles.tabIcon,active&&styles.tabIconActive]}>{icon}</Text><Text numberOfLines={1} style={[styles.tabText,active&&styles.tabTextActive]}>{label}</Text></Pressable>}
+function TabButton({icon,label,active,onPress}:{icon:string;label:string;active:boolean;onPress:()=>void}){const{isDark}=useAppAppearance();return <RNPressable accessibilityRole="tab" accessibilityLabel={`${label} 탭`} accessibilityState={{selected:active}} hitSlop={3} onPress={onPress} style={[styles.tab,active&&styles.tabActive,isDark&&active&&{backgroundColor:"rgba(80,140,255,0.18)"}]}><Text allowFontScaling={false} style={[styles.tabIcon,active&&styles.tabIconActive]}>{icon}</Text><Text allowFontScaling={false} numberOfLines={1} style={[styles.tabText,active&&styles.tabTextActive]}>{label}</Text></RNPressable>}
 
 const styles=StyleSheet.create({
   sharedRoomBanner:{marginTop:14,borderRadius:18,borderWidth:1,padding:14},
@@ -3902,11 +3902,14 @@ const styles=StyleSheet.create({
   tabs:{
     position:"absolute",
     left:10,
+    right:10,
     bottom:8,
     flexDirection:"row",
+    alignItems:"center",
     backgroundColor:"#FFFFFF",
-    padding:8,
-    minHeight:88,
+    paddingHorizontal:5,
+    paddingVertical:4,
+    height:72,
     borderRadius:26,
     shadowColor:"#20234A",
     shadowOffset:{width:0,height:7},
@@ -3915,16 +3918,16 @@ const styles=StyleSheet.create({
     elevation:8
   },
   tabsTiny:{
-    padding:6,
+    paddingHorizontal:3,
     borderRadius:19
   },
   tab:{
-    width:"20%",
+    flex:1,
     minWidth:0,
+    height:62,
     alignItems:"center",
     justifyContent:"center",
-    paddingVertical:10,
-    paddingHorizontal:3,
+    paddingHorizontal:1,
     borderRadius:16
   },
   tabActive:{
@@ -3932,12 +3935,12 @@ const styles=StyleSheet.create({
   },
   tabText:{
     color:"#8A8EAA",
-    fontSize:14,
+    fontSize:12,
     letterSpacing:-0.25,
     fontWeight:"800"
   },
   tabTextActive:{color:"#5C5CE2",fontWeight:"900"},
-  tabIcon:{color:"#8A8EAA",fontSize:23,fontWeight:"900",lineHeight:28,marginBottom:3},
+  tabIcon:{color:"#8A8EAA",fontSize:22,fontWeight:"900",lineHeight:27,marginBottom:2},
   tabIconActive:{color:"#5C5CE2"},
   tripRow:{
     flexDirection:"row",
