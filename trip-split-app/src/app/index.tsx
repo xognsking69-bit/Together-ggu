@@ -3865,8 +3865,8 @@ const styles=StyleSheet.create({
     bottom:8,
     flexDirection:"row",
     backgroundColor:"#FFFFFF",
-    padding:7,
-    minHeight:76,
+    padding:8,
+    minHeight:88,
     borderRadius:26,
     shadowColor:"#20234A",
     shadowOffset:{width:0,height:7},
@@ -3875,15 +3875,15 @@ const styles=StyleSheet.create({
     elevation:8
   },
   tabsTiny:{
-    padding:4,
+    padding:6,
     borderRadius:19
   },
   tab:{
     flex:1,
     alignItems:"center",
     justifyContent:"center",
-    paddingVertical:8,
-    paddingHorizontal:2,
+    paddingVertical:10,
+    paddingHorizontal:3,
     borderRadius:16
   },
   tabActive:{
@@ -3891,11 +3891,12 @@ const styles=StyleSheet.create({
   },
   tabText:{
     color:"#8A8EAA",
-    fontSize:12,
+    fontSize:14,
+    letterSpacing:-0.25,
     fontWeight:"800"
   },
   tabTextActive:{color:"#5C5CE2",fontWeight:"900"},
-  tabIcon:{color:"#8A8EAA",fontSize:19,fontWeight:"900",lineHeight:23,marginBottom:2},
+  tabIcon:{color:"#8A8EAA",fontSize:23,fontWeight:"900",lineHeight:28,marginBottom:3},
   tabIconActive:{color:"#5C5CE2"},
   tripRow:{
     flexDirection:"row",
