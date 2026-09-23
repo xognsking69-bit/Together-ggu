@@ -2,15 +2,16 @@
   "expo": {
     "name": "Togetrip",
     "slug": "togetrip",
-    "version": "3.28.1",
+    "owner": "susysisu",
+    "version": "3.28.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tripsplitapp",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.togetrip.app",
-      "buildNumber": "17",
+      "bundleIdentifier": "com.susysisu.togetrip.ios",
+      "buildNumber": "26",
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -24,7 +25,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.togetrip.app",
-      "versionCode": 17
+      "versionCode": 26
     },
     "web": {
       "output": "static",
