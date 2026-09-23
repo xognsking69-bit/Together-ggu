@@ -1,0 +1,38 @@
+name: Togetrip iOS Submit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  submit-ios:
+    name: Submit latest iOS build to App Store Connect
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: trip-split-app/package-lock.json
+
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: trip-split-app
+        run: npm ci
+
+      - name: Submit latest iOS build
+        working-directory: trip-split-app
+        run: eas submit --platform ios --latest --profile production --non-interactive
