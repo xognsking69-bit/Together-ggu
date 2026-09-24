@@ -25,7 +25,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.togetrip.app",
-      "versionCode": 31
+      "versionCode": 32
     },
     "web": {
       "output": "static",
