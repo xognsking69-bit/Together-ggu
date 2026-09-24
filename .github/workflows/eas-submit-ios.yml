@@ -35,4 +35,4 @@ jobs:
 
       - name: Submit latest iOS build
         working-directory: trip-split-app
-        run: eas submit --platform ios --latest --profile production --non-interactive
+        run: eas submit --platform ios --latest --profile production --non-interactive --no-wait
