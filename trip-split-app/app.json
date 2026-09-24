@@ -2,7 +2,7 @@
   "expo": {
     "name": "Togetrip",
     "slug": "togetrip",
-    "owner": "susysisus-team",
+    "owner": "susysisu",
     "version": "3.28.12",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -33,7 +33,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "89e16318-f3da-43a1-acf4-6d12cac243ae"
+        "projectId": "5f41c7f8-ceba-461a-9d74-d421967a7caa"
       }
     },
     "plugins": [
