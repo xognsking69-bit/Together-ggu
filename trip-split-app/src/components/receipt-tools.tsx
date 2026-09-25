@@ -9,6 +9,8 @@ import {
   Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
+import { fetch as expoFetch } from "expo/fetch";
 
 export type ReceiptResult = {
   merchant?: string;
@@ -129,25 +131,27 @@ export default function ReceiptTools({
     try {
       setAnalyzing(true);
 
-const form = new FormData();
+      const form = new FormData();
 
-if (Platform.OS === "web") {
-  const imageResponse = await fetch(receiptUri);
-  const imageBlob = await imageResponse.blob();
+      if (Platform.OS === "web") {
+        const imageResponse = await fetch(receiptUri);
+        if (!imageResponse.ok) {
+          throw new Error("선택한 영수증 사진을 읽지 못했어요.");
+        }
+        const imageBlob = await imageResponse.blob();
+        form.append("receipt", imageBlob, "receipt.jpg");
+      } else {
+        // Expo SDK 57's fetch accepts a File/Blob part. The legacy { uri, name, type }
+        // React Native FormData part is rejected by this runtime.
+        const imageFile = new File(receiptUri);
+        if (!imageFile.exists) {
+          throw new Error("영수증 사진 파일을 찾지 못했어요. 사진을 다시 선택해주세요.");
+        }
+        form.append("receipt", imageFile, "receipt.jpg");
+      }
 
-  form.append("receipt", imageBlob, "receipt.jpg");
-} else {
-  form.append(
-    "receipt",
-    {
-      uri: receiptUri,
-      name: "receipt.jpg",
-      type: "image/jpeg",
-    } as any
-  );
-}
-
-      const response = await fetch(endpoint, {
+      const request = Platform.OS === "web" ? fetch : expoFetch;
+      const response = await request(endpoint, {
         method: "POST",
         body: form,
       });
