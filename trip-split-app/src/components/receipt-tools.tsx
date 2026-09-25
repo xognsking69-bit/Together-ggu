@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { File } from "expo-file-system";
 import { fetch as expoFetch } from "expo/fetch";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import Purchases, { type PurchasesPackage } from "react-native-purchases";
 
 export type ReceiptResult = {
   merchant?: string;
@@ -28,6 +31,75 @@ type Props = {
   onReceiptUriChange: (uri: string | null) => void;
   onDetected: (result: ReceiptResult) => void;
 };
+
+const PAID_PRODUCT_ID = "receipt_ai_30";
+const PAID_CURRENCY_CODE = "AI_SCAN";
+
+type Usage = { freeRemaining: number; paidCredits: number; paidEnabled: boolean };
+type GuestSession = { guestId: string; token: string; expiresAt: number };
+const GUEST_SESSION_KEY = "togetrip-receipt-guest-session-v1";
+let guestSessionPromise: Promise<GuestSession> | null = null;
+
+async function readGuestSession() {
+  return Platform.OS === "web"
+    ? AsyncStorage.getItem(GUEST_SESSION_KEY)
+    : SecureStore.getItemAsync(GUEST_SESSION_KEY);
+}
+async function writeGuestSession(value: string) {
+  if (Platform.OS === "web") await AsyncStorage.setItem(GUEST_SESSION_KEY, value);
+  else await SecureStore.setItemAsync(GUEST_SESSION_KEY, value);
+}
+async function removeGuestSession() {
+  if (Platform.OS === "web") await AsyncStorage.removeItem(GUEST_SESSION_KEY);
+  else await SecureStore.deleteItemAsync(GUEST_SESSION_KEY);
+}
+
+async function getGuestSession(endpoint: string, request: typeof fetch): Promise<GuestSession> {
+  if (guestSessionPromise) return guestSessionPromise;
+  guestSessionPromise = (async () => {
+    let cached: GuestSession | null = null;
+    try {
+      const saved = await readGuestSession();
+      if (saved) cached = JSON.parse(saved) as GuestSession;
+    } catch {}
+    const now = Math.floor(Date.now() / 1000);
+    if (cached?.guestId && cached.token && cached.expiresAt > now + 30 * 24 * 60 * 60) return cached;
+
+    const sessionUrl = endpoint.replace(/\/receipt\/analyze\/?$/i, "/receipt/guest/session");
+    const response = await request(sessionUrl, {
+      method: "POST",
+      headers: cached?.token && cached.expiresAt > now ? { Authorization: `Bearer ${cached.token}` } : undefined,
+    });
+    if (!response.ok) throw new Error(response.status === 429
+      ? "게스트 이용 준비 한도에 도달했어요. 내일 다시 시도해주세요."
+      : "영수증 AI 연결을 준비하지 못했어요. 잠시 후 다시 시도해주세요.");
+    const session = await response.json() as GuestSession;
+    if (!session?.guestId || !session?.token || !Number.isFinite(session.expiresAt)) {
+      throw new Error("게스트 연결 정보가 올바르지 않아요.");
+    }
+    await writeGuestSession(JSON.stringify(session));
+    return session;
+  })();
+  try { return await guestSessionPromise; }
+  finally { guestSessionPromise = null; }
+}
+
+function getStoreApiKey() {
+  if (Platform.OS === "ios") return process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY?.trim();
+  if (Platform.OS === "android") return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY?.trim();
+  return undefined;
+}
+
+async function configureBilling(appUserId: string) {
+  const apiKey = getStoreApiKey();
+  if (!apiKey || Platform.OS === "web") return false;
+  if (!(await Purchases.isConfigured())) {
+    Purchases.configure({ apiKey, appUserID: appUserId });
+  } else if ((await Purchases.getAppUserID()) !== appUserId) {
+    await Purchases.logIn(appUserId);
+  }
+  return true;
+}
 
 const ALLOWED_CURRENCIES = ["KRW", "JPY", "USD", "EUR"] as const;
 const ALLOWED_CATEGORIES = ["식비", "카페", "교통", "숙박", "관광", "쇼핑", "기타"] as const;
@@ -77,6 +149,75 @@ export default function ReceiptTools({
 }: Props) {
   const [analyzing, setAnalyzing] = useState(false);
   const [lastResult, setLastResult] = useState<ReceiptResult | null>(null);
+  const [usage, setUsage] = useState<Usage>({ freeRemaining: -1, paidCredits: 0, paidEnabled: false });
+  const [paidPackage, setPaidPackage] = useState<PurchasesPackage | null>(null);
+  const [billingReady, setBillingReady] = useState(false);
+  const [buying, setBuying] = useState(false);
+
+  const refreshUsage = useCallback(async () => {
+    const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
+    if (!endpoint) return;
+    const request = Platform.OS === "web" ? fetch : expoFetch;
+    const session = await getGuestSession(endpoint, request);
+    const usageUrl = endpoint.replace(/\/receipt\/analyze\/?$/i, "/receipt/usage");
+    const response = await request(usageUrl, { headers: { Authorization: `Bearer ${session.token}` } });
+    if (response.status === 401) {
+      await removeGuestSession();
+      throw new Error("영수증 AI 연결이 만료됐어요. 다시 시도해주세요.");
+    }
+    if (response.ok) {
+      const data = await response.json();
+      setUsage({
+        freeRemaining: Math.max(0, Number(data?.freeRemaining) || 0),
+        paidCredits: Math.max(0, Number(data?.paidCredits) || 0),
+        paidEnabled: data?.paidEnabled === true,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void refreshUsage().catch(() => {});
+    void (async () => {
+      try {
+        const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
+        if (!endpoint) return;
+        const request = Platform.OS === "web" ? fetch : expoFetch;
+        const session = await getGuestSession(endpoint, request);
+        const ready = await configureBilling(session.guestId);
+        if (!active || !ready) return;
+        const offerings = await Purchases.getOfferings();
+        const productPackage = offerings.current?.availablePackages.find(
+          item => item.product.identifier === PAID_PRODUCT_ID
+        ) || null;
+        if (active) {
+          setPaidPackage(productPackage);
+          setBillingReady(true);
+          await refreshUsage().catch(() => {});
+        }
+      } catch (error) {
+        console.warn("Receipt credit store unavailable", error);
+      }
+    })();
+    return () => { active = false; };
+  }, [refreshUsage]);
+
+  async function buyCredits() {
+    if (!paidPackage || !usage.paidEnabled || buying) return;
+    try {
+      setBuying(true);
+      await Purchases.purchasePackage(paidPackage);
+      await new Promise(resolve => setTimeout(resolve, 700));
+      await refreshUsage();
+      Alert.alert("구매 완료", "AI 영수증 분석 크레딧 30회가 추가됐어요.");
+    } catch (error: any) {
+      if (!error?.userCancelled) {
+        Alert.alert("구매를 완료하지 못했어요", error?.message || "잠시 후 다시 시도해주세요.");
+      }
+    } finally {
+      setBuying(false);
+    }
+  }
 
   function usePickedImage(uri?: string) {
     if (!uri) return;
@@ -131,6 +272,10 @@ export default function ReceiptTools({
     try {
       setAnalyzing(true);
 
+      const request = Platform.OS === "web" ? fetch : expoFetch;
+      const session = await getGuestSession(endpoint, request);
+      await configureBilling(session.guestId);
+
       const form = new FormData();
 
       if (Platform.OS === "web") {
@@ -150,15 +295,24 @@ export default function ReceiptTools({
         form.append("receipt", imageFile, "receipt.jpg");
       }
 
-      const request = Platform.OS === "web" ? fetch : expoFetch;
-      const response = await request(endpoint, {
+      const response = await request(endpoint.replace(/\/$/, ""), {
         method: "POST",
+        headers: { Authorization: `Bearer ${session.token}` },
         body: form,
       });
 
       const raw = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (response.status === 402 || raw?.code === "AI_CREDITS_REQUIRED") {
+          await refreshUsage().catch(() => {});
+          Alert.alert("무료 분석을 모두 사용했어요", "유료 분석 30회를 추가하면 계속 사용할 수 있어요.");
+          return;
+        }
+        if (response.status === 429 || raw?.code === "SERVICE_DAILY_LIMIT_REACHED") {
+          Alert.alert("오늘 이용 한도", raw?.error || "오늘 영수증 AI 이용 한도에 도달했습니다. 내일 다시 이용해주세요.");
+          return;
+        }
         const message =
           typeof raw?.error === "string"
             ? raw.error
@@ -180,6 +334,7 @@ export default function ReceiptTools({
 
       setLastResult(parsed);
       onDetected(parsed);
+      await refreshUsage().catch(() => {});
     } catch (error: any) {
       Alert.alert(
         "영수증 분석 실패",
@@ -224,6 +379,21 @@ export default function ReceiptTools({
           <Text style={styles.emptyText}>영수증 사진을 추가해주세요</Text>
         </View>
       )}
+
+      <View style={styles.usageRow}>
+        <Text style={styles.usageText}>
+          {usage.freeRemaining < 0 ? "사용량 불러오는 중" : `무료 ${usage.freeRemaining}/5회 · 유료 ${usage.paidCredits}회`}
+        </Text>
+        <Pressable
+          disabled={!paidPackage || !usage.paidEnabled || buying}
+          onPress={buyCredits}
+          style={[styles.creditButton, (!paidPackage || buying) && styles.disabled]}
+        >
+          <Text style={styles.creditButtonText}>
+            {buying ? "구매 중…" : paidPackage && usage.paidEnabled ? `30회 ${paidPackage.product.priceString}` : billingReady ? "상품 준비 중" : "스토어 연결 준비 중"}
+          </Text>
+        </Pressable>
+      </View>
 
       <View style={styles.actions}>
         <Pressable onPress={takePhoto} style={styles.secondaryButton}>
@@ -317,6 +487,10 @@ const styles = StyleSheet.create({
   removeButton:{alignSelf:"flex-end",paddingVertical:8,paddingHorizontal:4},
   removeText:{fontSize:12,fontWeight:"800",color:"#E15467"},
   actions:{flexDirection:"row",gap:9,marginTop:4},
+  usageRow:{marginTop:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8},
+  usageText:{flex:1,fontSize:11,color:"#777C9D",fontWeight:"700"},
+  creditButton:{paddingHorizontal:12,paddingVertical:9,borderRadius:12,backgroundColor:"#F4F5FA"},
+  creditButtonText:{fontSize:11,fontWeight:"900",color:"#20223F"},
   secondaryButton:{
     flex:1,
     paddingVertical:12,
