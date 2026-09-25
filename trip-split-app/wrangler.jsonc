@@ -1,5 +1,5 @@
 {
-  "name": "trip-split-receipt-ai",
+  "name": "trip-split-receipt-ai-v2",
   "compatibility_date": "2026-09-10",
   "main": "worker/receipt-ai-worker.js",
   "ai": { "binding": "AI" },
