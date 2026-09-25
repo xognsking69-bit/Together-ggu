@@ -32,7 +32,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.12";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.15";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
