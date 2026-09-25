@@ -1,5 +1,20 @@
 {
   "name": "trip-split-receipt-ai",
   "compatibility_date": "2026-09-10",
-  "main": "worker/receipt-ai-worker.js"
+  "main": "worker/receipt-ai-worker.js",
+  "ai": { "binding": "AI" },
+  "vars": {
+    "RECEIPT_AI_PROVIDER": "cloudflare",
+    "RECEIPT_AI_MODEL": "@cf/moondream/moondream3.1-9B-A2B",
+    "MAX_ANALYSES_PER_GUEST_PER_DAY": "10",
+    "MAX_ANALYSES_GLOBAL_PER_DAY": "25"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "RECEIPT_USAGE", "class_name": "ReceiptUsageStore" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ReceiptUsageStore"] }
+  ]
 }
