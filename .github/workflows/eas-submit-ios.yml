@@ -2,15 +2,32 @@ name: Togetrip iOS Submit
 
 on:
   workflow_dispatch:
+    inputs:
+      build_id:
+        description: EAS iOS build ID to submit
+        required: true
+        type: string
+      expected_version:
+        description: App version to verify before submission
+        required: true
+        type: string
+      expected_build_number:
+        description: iOS build number to verify before submission
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   submit-ios:
-    name: Submit latest iOS build to App Store Connect
+    name: Wait for and submit specified iOS build to TestFlight
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
+    env:
+      BUILD_ID: ${{ inputs.build_id }}
+      EXPECTED_VERSION: ${{ inputs.expected_version }}
+      EXPECTED_BUILD_NUMBER: ${{ inputs.expected_build_number }}
 
     steps:
       - name: Check out repository
@@ -33,6 +50,39 @@ jobs:
         working-directory: trip-split-app
         run: npm ci
 
-      - name: Submit latest iOS build
+      - name: Verify the selected build and wait for completion
         working-directory: trip-split-app
-        run: eas submit --platform ios --latest --profile production --non-interactive --no-wait
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 80); do
+            eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/ios-build.json"
+            node - <<'NODE'
+          const fs = require('node:fs');
+          const b = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/ios-build.json', 'utf8'));
+          const expectedVersion = process.env.EXPECTED_VERSION;
+          const expectedBuildNumber = process.env.EXPECTED_BUILD_NUMBER;
+          if (b.id !== process.env.BUILD_ID || b.platform !== 'IOS' ||
+              b.appVersion !== expectedVersion ||
+              String(b.appBuildVersion) !== expectedBuildNumber) {
+            console.error('Build identity or version mismatch:', {
+              id: b.id, platform: b.platform,
+              appVersion: b.appVersion, appBuildVersion: b.appBuildVersion
+            });
+            process.exit(1);
+          }
+          console.log(`Build ${b.id}: ${b.status}, version ${b.appVersion} (${b.appBuildVersion})`);
+          NODE
+            status=$(node -p "JSON.parse(require('node:fs').readFileSync(process.env.RUNNER_TEMP + '/ios-build.json', 'utf8')).status")
+            case "$status" in
+              FINISHED) exit 0 ;;
+              ERRORED|CANCELED) echo "EAS build ended: $status" >&2; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo 'Timed out waiting for the selected iOS build' >&2
+          exit 1
+
+      - name: Submit the verified build to App Store Connect
+        working-directory: trip-split-app
+        run: eas submit --platform ios --id "$BUILD_ID" --profile production --non-interactive --no-wait
