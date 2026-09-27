@@ -1,0 +1,46 @@
+name: Export Togetrip Android bundle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Download completed EAS Android build
+        working-directory: trip-split-app
+        env:
+          BUILD_ID: 20717cd6-ac00-4090-86eb-b17a6f83fcfa
+        run: |
+          set -euo pipefail
+          eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"
+          node <<'NODE'
+          const fs = require('fs');
+          const b = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/build.json', 'utf8'));
+          const status = String(b.status || '').toLowerCase();
+          const platform = String(b.platform || '').toLowerCase();
+          const url = b.artifacts?.buildUrl || b.artifacts?.applicationArchiveUrl;
+          console.log(JSON.stringify({id: b.id, status: b.status, platform: b.platform, appVersion: b.appVersion, appBuildVersion: b.appBuildVersion}));
+          if (status !== 'finished' || platform !== 'android' || !url) throw Error('Android build is not finished or has no artifact');
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/artifact-url', url);
+          NODE
+          curl --fail --location --silent --show-error --retry 3 --output "$RUNNER_TEMP/togetrip-3.28.16-36.aab" "$(cat "$RUNNER_TEMP/artifact-url")"
+          file "$RUNNER_TEMP/togetrip-3.28.16-36.aab"
+          unzip -t "$RUNNER_TEMP/togetrip-3.28.16-36.aab" | tail -1
+          ls -lh "$RUNNER_TEMP/togetrip-3.28.16-36.aab"
+      - name: Upload Android app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: togetrip-3.28.16-36-aab
+          path: ${{ runner.temp }}/togetrip-3.28.16-36.aab
+          if-no-files-found: error
+          retention-days: 7
