@@ -2,7 +2,7 @@
 const FREE_ANALYSES_PER_GUEST = 5;
 const MAX_NEW_GUESTS_PER_IP_PER_DAY = 5;
 const DEFAULT_MAX_ANALYSES_PER_GUEST_PER_DAY = 10;
-const DEFAULT_MAX_ANALYSES_GLOBAL_PER_DAY = 25;
+const DEFAULT_MAX_ANALYSES_GLOBAL_PER_DAY = 10;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const TOKEN_LIFETIME_SECONDS = 365 * 24 * 60 * 60;
 const USAGE_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
@@ -41,8 +41,7 @@ export default {
       if (!identity) return json({ error: "Guest session required" }, 401);
       try {
         const usage = await usageFor(env, identity.sub);
-        const paidCredits = await readCredits(env, identity.sub);
-        return json({ ...usage, paidCredits, paidEnabled: revenueCatConfigured(env) });
+        return json(usage);
       } catch (error) {
         console.error("Usage lookup failed", error?.message || String(error));
         return json({ error: "Usage is temporarily unavailable" }, 503);
@@ -68,8 +67,6 @@ export default {
     let dailyReservation;
     let globalStub;
     let globalReservation;
-    let paidCharge;
-    let paidCharged = false;
     try {
       const form = await request.formData();
       const receipt = form.get("receipt");
@@ -84,13 +81,7 @@ export default {
       const freeResponse = await reserve(usageStub, freeReservation, FREE_ANALYSES_PER_GUEST);
       const freeResult = await freeResponse.json();
       if (!freeResult.allowed) {
-        const transaction = await adjustCredits(env, appUserId, -1, crypto.randomUUID());
-        if (!transaction.ok) {
-          if (transaction.status !== 422) throw new Error(`RevenueCat spend failed (${transaction.status || "network error"})`);
-          return json({ code: "AI_CREDITS_REQUIRED", error: "무료 분석 5회를 모두 사용했습니다. 추가 크레딧을 구매해주세요.", freeRemaining: 0 }, 402);
-        }
-        paidCharged = true;
-        paidCharge = crypto.randomUUID();
+        return json({ code: "AI_CREDITS_REQUIRED", error: "무료 분석 5회를 모두 사용했습니다.", freeRemaining: 0 }, 402);
       }
 
       const day = utcDay();
@@ -99,19 +90,15 @@ export default {
       const dailyResponse = await reserve(dailyStub, dailyReservation, positiveLimit(env.MAX_ANALYSES_PER_GUEST_PER_DAY, DEFAULT_MAX_ANALYSES_PER_GUEST_PER_DAY), "daily", day);
       if (!(await dailyResponse.json()).allowed) {
         await releaseReservation(usageStub, freeReservation); freeReservation = undefined;
-        if (paidCharged) await adjustCredits(env, appUserId, 1, paidCharge);
-        paidCharged = false;
         return json({ code: "DAILY_LIMIT_REACHED", error: "오늘 영수증 AI 이용 한도에 도달했습니다. 내일 다시 이용해주세요." }, 429);
       }
 
       globalStub = env.RECEIPT_USAGE.get(env.RECEIPT_USAGE.idFromName("global:receipt"));
       globalReservation = crypto.randomUUID();
-      const globalResponse = await reserve(globalStub, globalReservation, positiveLimit(env.MAX_ANALYSES_GLOBAL_PER_DAY, DEFAULT_MAX_ANALYSES_GLOBAL_PER_DAY), "daily", day);
+      const globalResponse = await reserve(globalStub, globalReservation, Math.min(positiveLimit(env.MAX_ANALYSES_GLOBAL_PER_DAY, DEFAULT_MAX_ANALYSES_GLOBAL_PER_DAY), DEFAULT_MAX_ANALYSES_GLOBAL_PER_DAY), "daily", day);
       if (!(await globalResponse.json()).allowed) {
         await releaseReservation(usageStub, freeReservation); freeReservation = undefined;
         await releaseReservation(dailyStub, dailyReservation); dailyReservation = undefined;
-        if (paidCharged) await adjustCredits(env, appUserId, 1, paidCharge);
-        paidCharged = false;
         return json({ code: "SERVICE_DAILY_LIMIT_REACHED", error: "오늘 AI 처리 한도에 도달했습니다. 내일 다시 이용해주세요." }, 503);
       }
 
@@ -123,18 +110,13 @@ export default {
       await commitReservation(usageStub, freeReservation); freeReservation = undefined;
       await commitReservation(dailyStub, dailyReservation, "daily"); dailyReservation = undefined;
       await commitReservation(globalStub, globalReservation, "daily"); globalReservation = undefined;
-      paidCharged = false;
       return json(normalized);
     } catch (error) {
       console.error("Receipt analysis failed", error?.stack || error?.message || String(error));
       if (freeReservation && usageStub) await releaseReservation(usageStub, freeReservation).catch(() => {});
       if (dailyReservation && dailyStub) await releaseReservation(dailyStub, dailyReservation, "daily").catch(() => {});
       if (globalReservation && globalStub) await releaseReservation(globalStub, globalReservation, "daily").catch(() => {});
-      if (paidCharged) {
-        const refund = await adjustCredits(env, appUserId, 1, paidCharge).catch(() => ({ ok: false }));
-        if (!refund.ok) console.error("Could not refund a failed paid analysis");
-      }
-      return json({ error: "영수증 분석에 실패했습니다. 크레딧이 차감되지 않도록 처리했습니다." }, 502);
+      return json({ error: "영수증 분석에 실패했습니다. 무료 이용 횟수는 차감되지 않았습니다." }, 502);
     }
   }
 };
@@ -310,26 +292,6 @@ async function usageFor(env, appUserId) {
   const response = await env.RECEIPT_USAGE.get(env.RECEIPT_USAGE.idFromName(`guest:${appUserId}`)).fetch("https://usage/usage");
   if (!response.ok) throw new Error("Usage lookup failed");
   return response.json();
-}
-function revenueCatConfigured(env) {
-  return Boolean(env.REVENUECAT_PROJECT_ID && env.REVENUECAT_SECRET_API_KEY && env.RECEIPT_AI_CURRENCY_CODE);
-}
-async function readCredits(env, appUserId) {
-  if (!revenueCatConfigured(env)) return 0;
-  const url = `https://api.revenuecat.com/v2/projects/${encodeURIComponent(env.REVENUECAT_PROJECT_ID)}/customers/${encodeURIComponent(appUserId)}/virtual_currencies?include_empty_balances=true`;
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${env.REVENUECAT_SECRET_API_KEY}` } });
-  if (!response.ok) throw new Error(`RevenueCat balance lookup returned ${response.status}`);
-  const data = await response.json();
-  return Math.max(0, Number(data.items?.find(item => item.currency_code === env.RECEIPT_AI_CURRENCY_CODE)?.balance) || 0);
-}
-async function adjustCredits(env, appUserId, amount, idempotencyKey) {
-  if (!revenueCatConfigured(env)) return { ok: false, status: 422 };
-  const url = `https://api.revenuecat.com/v2/projects/${encodeURIComponent(env.REVENUECAT_PROJECT_ID)}/customers/${encodeURIComponent(appUserId)}/virtual_currencies/transactions`;
-  const response = await fetch(url, {
-    method: "POST", headers: { Authorization: `Bearer ${env.REVENUECAT_SECRET_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ adjustments: { [env.RECEIPT_AI_CURRENCY_CODE]: amount }, reference: `receipt-ai:${idempotencyKey}` })
-  });
-  return { ok: response.ok, status: response.status };
 }
 function positiveLimit(value, fallback) {
   const number = Number(value);

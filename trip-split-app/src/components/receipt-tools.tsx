@@ -13,7 +13,6 @@ import { File } from "expo-file-system";
 import { fetch as expoFetch } from "expo/fetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
-import Purchases, { type PurchasesPackage } from "react-native-purchases";
 
 export type ReceiptResult = {
   merchant?: string;
@@ -32,10 +31,7 @@ type Props = {
   onDetected: (result: ReceiptResult) => void;
 };
 
-const PAID_PRODUCT_ID = "receipt_ai_30";
-const PAID_CURRENCY_CODE = "AI_SCAN";
-
-type Usage = { freeRemaining: number; paidCredits: number; paidEnabled: boolean };
+type Usage = { freeRemaining: number };
 type GuestSession = { guestId: string; token: string; expiresAt: number };
 const GUEST_SESSION_KEY = "togetrip-receipt-guest-session-v1";
 let guestSessionPromise: Promise<GuestSession> | null = null;
@@ -82,23 +78,6 @@ async function getGuestSession(endpoint: string, request: typeof fetch): Promise
   })();
   try { return await guestSessionPromise; }
   finally { guestSessionPromise = null; }
-}
-
-function getStoreApiKey() {
-  if (Platform.OS === "ios") return process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY?.trim();
-  if (Platform.OS === "android") return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY?.trim();
-  return undefined;
-}
-
-async function configureBilling(appUserId: string) {
-  const apiKey = getStoreApiKey();
-  if (!apiKey || Platform.OS === "web") return false;
-  if (!(await Purchases.isConfigured())) {
-    Purchases.configure({ apiKey, appUserID: appUserId });
-  } else if ((await Purchases.getAppUserID()) !== appUserId) {
-    await Purchases.logIn(appUserId);
-  }
-  return true;
 }
 
 const ALLOWED_CURRENCIES = ["KRW", "JPY", "USD", "EUR"] as const;
@@ -149,10 +128,7 @@ export default function ReceiptTools({
 }: Props) {
   const [analyzing, setAnalyzing] = useState(false);
   const [lastResult, setLastResult] = useState<ReceiptResult | null>(null);
-  const [usage, setUsage] = useState<Usage>({ freeRemaining: -1, paidCredits: 0, paidEnabled: false });
-  const [paidPackage, setPaidPackage] = useState<PurchasesPackage | null>(null);
-  const [billingReady, setBillingReady] = useState(false);
-  const [buying, setBuying] = useState(false);
+  const [usage, setUsage] = useState<Usage>({ freeRemaining: -1 });
 
   const refreshUsage = useCallback(async () => {
     const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
@@ -169,55 +145,13 @@ export default function ReceiptTools({
       const data = await response.json();
       setUsage({
         freeRemaining: Math.max(0, Number(data?.freeRemaining) || 0),
-        paidCredits: Math.max(0, Number(data?.paidCredits) || 0),
-        paidEnabled: data?.paidEnabled === true,
       });
     }
   }, []);
 
   useEffect(() => {
-    let active = true;
     void refreshUsage().catch(() => {});
-    void (async () => {
-      try {
-        const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
-        if (!endpoint) return;
-        const request = Platform.OS === "web" ? fetch : expoFetch;
-        const session = await getGuestSession(endpoint, request);
-        const ready = await configureBilling(session.guestId);
-        if (!active || !ready) return;
-        const offerings = await Purchases.getOfferings();
-        const productPackage = offerings.current?.availablePackages.find(
-          item => item.product.identifier === PAID_PRODUCT_ID
-        ) || null;
-        if (active) {
-          setPaidPackage(productPackage);
-          setBillingReady(true);
-          await refreshUsage().catch(() => {});
-        }
-      } catch (error) {
-        console.warn("Receipt credit store unavailable", error);
-      }
-    })();
-    return () => { active = false; };
   }, [refreshUsage]);
-
-  async function buyCredits() {
-    if (!paidPackage || !usage.paidEnabled || buying) return;
-    try {
-      setBuying(true);
-      await Purchases.purchasePackage(paidPackage);
-      await new Promise(resolve => setTimeout(resolve, 700));
-      await refreshUsage();
-      Alert.alert("구매 완료", "AI 영수증 분석 크레딧 30회가 추가됐어요.");
-    } catch (error: any) {
-      if (!error?.userCancelled) {
-        Alert.alert("구매를 완료하지 못했어요", error?.message || "잠시 후 다시 시도해주세요.");
-      }
-    } finally {
-      setBuying(false);
-    }
-  }
 
   function usePickedImage(uri?: string) {
     if (!uri) return;
@@ -274,7 +208,6 @@ export default function ReceiptTools({
 
       const request = Platform.OS === "web" ? fetch : expoFetch;
       const session = await getGuestSession(endpoint, request);
-      await configureBilling(session.guestId);
 
       const form = new FormData();
 
@@ -306,7 +239,7 @@ export default function ReceiptTools({
       if (!response.ok) {
         if (response.status === 402 || raw?.code === "AI_CREDITS_REQUIRED") {
           await refreshUsage().catch(() => {});
-          Alert.alert("무료 분석을 모두 사용했어요", "유료 분석 30회를 추가하면 계속 사용할 수 있어요.");
+          Alert.alert("무료 분석을 모두 사용했어요", "현재 무료 체험은 5회까지 제공됩니다.");
           return;
         }
         if (response.status === 429 || raw?.code === "SERVICE_DAILY_LIMIT_REACHED") {
@@ -382,17 +315,8 @@ export default function ReceiptTools({
 
       <View style={styles.usageRow}>
         <Text style={styles.usageText}>
-          {usage.freeRemaining < 0 ? "사용량 불러오는 중" : `무료 ${usage.freeRemaining}/5회 · 유료 ${usage.paidCredits}회`}
+          {usage.freeRemaining < 0 ? "사용량 불러오는 중" : `무료 분석 ${usage.freeRemaining}/5회 남음`}
         </Text>
-        <Pressable
-          disabled={!paidPackage || !usage.paidEnabled || buying}
-          onPress={buyCredits}
-          style={[styles.creditButton, (!paidPackage || buying) && styles.disabled]}
-        >
-          <Text style={styles.creditButtonText}>
-            {buying ? "구매 중…" : paidPackage && usage.paidEnabled ? `30회 ${paidPackage.product.priceString}` : billingReady ? "상품 준비 중" : "스토어 연결 준비 중"}
-          </Text>
-        </Pressable>
       </View>
 
       <View style={styles.actions}>

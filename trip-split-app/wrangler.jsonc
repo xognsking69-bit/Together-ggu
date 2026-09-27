@@ -7,7 +7,7 @@
     "RECEIPT_AI_PROVIDER": "cloudflare",
     "RECEIPT_AI_MODEL": "@cf/moondream/moondream3.1-9B-A2B",
     "MAX_ANALYSES_PER_GUEST_PER_DAY": "10",
-    "MAX_ANALYSES_GLOBAL_PER_DAY": "25"
+    "MAX_ANALYSES_GLOBAL_PER_DAY": "10"
   },
   "durable_objects": {
     "bindings": [

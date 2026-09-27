@@ -122,6 +122,33 @@ test("receipt analysis uses Cloudflare AI and accepts only a signed guest sessio
   assert.equal(aiCalls, 1);
 });
 
+test("free release stops after five analyses even when RevenueCat secrets are present", async () => {
+  let aiCalls = 0;
+  const env = makeEnv({
+    RECEIPT_AI_PROVIDER: "cloudflare",
+    REVENUECAT_PROJECT_ID: "not-used",
+    REVENUECAT_SECRET_API_KEY: "not-used",
+    RECEIPT_AI_CURRENCY_CODE: "AISCAN",
+    AI: { async run() {
+      aiCalls++;
+      return { answer: JSON.stringify({ merchant: "상점", date: null, amount: 100, currency: "KRW", category: "기타", confidence: 0.8 }) };
+    } }
+  });
+  const session = await createSession(env);
+  async function analyze() {
+    const form = new FormData();
+    form.append("receipt", new Blob([new Uint8Array([1])], { type: "image/png" }), "receipt.png");
+    return worker.fetch(new Request("https://worker.test/receipt/analyze", {
+      method: "POST", headers: { Authorization: `Bearer ${session.data.token}` }, body: form
+    }), env);
+  }
+  for (let i = 0; i < 5; i++) assert.equal((await analyze()).status, 200);
+  const blocked = await analyze();
+  assert.equal(blocked.status, 402);
+  assert.equal((await blocked.json()).code, "AI_CREDITS_REQUIRED");
+  assert.equal(aiCalls, 5);
+});
+
 test("global daily cap stops a second guest before calling the model", async () => {
   let aiCalls = 0;
   const env = makeEnv({
