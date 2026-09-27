@@ -1,0 +1,63 @@
+name: Receipt API smoke check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install project dependencies
+        working-directory: trip-split-app
+        run: npm ci
+      - name: Inspect public receipt URL from EAS production
+        working-directory: trip-split-app
+        run: |
+          eas env:pull production --path "$RUNNER_TEMP/receipt.env" --non-interactive >/dev/null
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const lines = fs.readFileSync(process.env.RUNNER_TEMP + '/receipt.env', 'utf8').split(/\r?\n/);
+          const line = lines.find(x => x.startsWith('EXPO_PUBLIC_RECEIPT_API_URL='));
+          if (!line) throw Error('EXPO_PUBLIC_RECEIPT_API_URL is absent');
+          const value = line.slice(line.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
+          const url = new URL(value);
+          console.log('Configured receipt URL host:', url.host);
+          console.log('Configured receipt URL path:', url.pathname);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'origin=' + url.origin + '\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'configured=' + value + '\n');
+          NODE
+        id: url
+      - name: Check guest session routes without analyzing a receipt
+        env:
+          ORIGIN: ${{ steps.url.outputs.origin }}
+          CONFIGURED: ${{ steps.url.outputs.configured }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONFIGURED" == */receipt/analyze ]]; then
+            configured_session="${CONFIGURED%/receipt/analyze}/receipt/guest/session"
+          else
+            configured_session="$CONFIGURED"
+          fi
+          for label in configured canonical; do
+            if [[ "$label" == configured ]]; then url="$configured_session"
+            else url="$ORIGIN/receipt/guest/session"; fi
+            code=$(curl -sS --max-time 20 -o "$RUNNER_TEMP/$label.json" -w '%{http_code}' -X POST "$url")
+            echo "$label session status: $code"
+            node - "$RUNNER_TEMP/$label.json" <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          console.log('Result:', data.error || (data.guestId && data.token ? 'guest session issued' : 'unexpected response'));
+          NODE
+          done
