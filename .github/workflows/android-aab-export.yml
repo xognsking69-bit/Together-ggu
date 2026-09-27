@@ -22,7 +22,12 @@ jobs:
           BUILD_ID: 20717cd6-ac00-4090-86eb-b17a6f83fcfa
         run: |
           set -euo pipefail
-          eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"
+          eas init --account susysisu --non-interactive
+          if ! eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"; then
+            echo "Build lookup failed; recent Android build summary:"
+            eas build:list --platform android --limit 5 --json | node -e 'let d="";process.stdin.on("data",x=>d+=x).on("end",()=>{for(const b of JSON.parse(d)) console.log(JSON.stringify({id:b.id,status:b.status,appVersion:b.appVersion,appBuildVersion:b.appBuildVersion}));})'
+            exit 1
+          fi
           node <<'NODE'
           const fs = require('fs');
           const b = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/build.json', 'utf8'));
