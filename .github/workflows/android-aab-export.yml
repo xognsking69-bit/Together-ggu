@@ -22,6 +22,7 @@ jobs:
           BUILD_ID: 20717cd6-ac00-4090-86eb-b17a6f83fcfa
         run: |
           set -euo pipefail
+          npm ci
           eas init --account susysisu --non-interactive
           if ! eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"; then
             echo "Build lookup failed; recent Android build summary:"
