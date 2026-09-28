@@ -1,3 +1,4 @@
+import { CURRENCIES, CURRENCY_NAMES } from "../currencies";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Animated, Easing, Image, Modal, SafeAreaView, ScrollView, Share,
@@ -33,7 +34,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.17";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.18";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -102,7 +103,7 @@ function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: st
 
 const ME_ID = "me";
 const categories = ["식비", "카페", "교통", "숙박", "관광", "쇼핑", "기타"];
-const currencies: Expense["currency"][] = ["KRW", "JPY", "USD", "EUR"];
+const currencies = CURRENCIES;
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const today = () => new Date().toISOString().slice(0, 10);
 const won = (n:number) => `${Math.round(n || 0).toLocaleString("ko-KR")}원`;
@@ -302,6 +303,7 @@ function IndexContent() {
   const [rate, setRate] = useState("1");
   const [rateMode, setRateMode] = useState<"auto" | "manual">("auto");
   const [rateLoading, setRateLoading] = useState(false);
+  const rateRequestId = useRef(0);
   const [rateDate, setRateDate] = useState<string | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
   const [currency, setCurrency] = useState<Expense["currency"]>("KRW");
@@ -858,7 +860,9 @@ if (!activeTrip) return null;
   }
 
   async function refreshAutoRate(nextCurrency:Expense["currency"] = currency) {
+    const requestId = ++rateRequestId.current;
     if (nextCurrency === "KRW") {
+      setRateLoading(false);
       setRate("1");
       setRateDate(today());
       setRateError(null);
@@ -866,6 +870,8 @@ if (!activeTrip) return null;
     }
 
     setRateLoading(true);
+    setRate("");
+    setRateDate(null);
     setRateError(null);
     try {
       const response = await fetch(`https://api.frankfurter.dev/v2/rate/${nextCurrency.toLowerCase()}/krw`);
@@ -873,17 +879,21 @@ if (!activeTrip) return null;
       const data = await response.json();
       const nextRate = Number(data?.rate);
       if (!Number.isFinite(nextRate) || nextRate <= 0) throw new Error("invalid rate");
+      if (requestId !== rateRequestId.current) return;
       setRate(formatExchangeRate(nextRate));
       setRateDate(typeof data?.date === "string" ? data.date : today());
     } catch {
+      if (requestId !== rateRequestId.current) return;
       setRateError("자동 환율을 불러오지 못했어요. 직접 입력으로 사용할 수 있어요.");
     } finally {
-      setRateLoading(false);
+      if (requestId === rateRequestId.current) setRateLoading(false);
     }
   }
 
   useEffect(() => {
     if (rateMode === "auto") void refreshAutoRate(currency);
+    else setRateLoading(false);
+    return () => { rateRequestId.current += 1; };
   }, [currency, rateMode]);
 
   function resetForm() {
@@ -895,9 +905,10 @@ if (!activeTrip) return null;
   }
 
   function saveExpense() {
-    const a = Number(amount), r = Number(rate);
-    if (!a || a <= 0) return Alert.alert("금액을 확인해주세요.");
-    if (!r || r <= 0) return Alert.alert("환율을 확인해주세요.");
+    if (currency !== "KRW" && rateMode === "auto" && (rateLoading || rateError)) return Alert.alert("환율을 확인해주세요.", "환율 조회가 끝난 뒤 저장하거나 직접 환율을 입력해주세요.");
+    const a = Number(amount), r = currency === "KRW" ? 1 : Number(rate);
+    if (!Number.isFinite(a) || a <= 0) return Alert.alert("금액을 확인해주세요.");
+    if (!Number.isFinite(r) || r <= 0) return Alert.alert("환율을 확인해주세요.");
     if (!participants.length) return Alert.alert("함께 사용한 사람을 선택해주세요.");
 
     const expense: Expense & {
@@ -2015,6 +2026,8 @@ if (!activeTrip) return null;
               if (result.amount != null) setAmount(String(result.amount));
               if (result.currency && currencies.includes(result.currency as Expense["currency"])) {
                 const detectedCurrency = result.currency as Expense["currency"];
+                rateRequestId.current += 1;
+                if (detectedCurrency !== currency) { setRate(""); setRateDate(null); }
                 setCurrency(detectedCurrency);
                 if (detectedCurrency === "KRW") {
                   setRate("1");
@@ -2042,7 +2055,10 @@ if (!activeTrip) return null;
           </Pressable>
           <Field label="금액" value={amount} onChangeText={setAmount} keyboardType="decimal-pad"/>
           <Text style={styles.label}>통화</Text>
-          <View style={styles.chips}>{currencies.map(x=><Chip key={x} text={x} selected={currency===x} onPress={()=>{
+          <View style={styles.chips}>{currencies.map(x=><Chip key={x} text={`${x} · ${CURRENCY_NAMES[x]}`} selected={currency===x} onPress={()=>{
+            if (x === currency) return;
+            rateRequestId.current += 1;
+            if (x !== currency && x !== "KRW") { setRate(""); setRateDate(null); setRateError(null); }
             setCurrency(x);
             if (x === "KRW") { setRate("1"); setRateDate(today()); setRateError(null); }
           }}/>)}</View>
@@ -2095,6 +2111,7 @@ if (!activeTrip) return null;
             return <View key={e.id} style={styles.expense}>
               <View style={styles.rowBetween}><View style={styles.flex}><Text style={styles.bold}>{e.title}</Text><Text style={styles.muted}>
                 {e.date} · {e.category} · {payer} 결제 · {e.participantIds.length}명
+                {e.currency !== "KRW" ? ` · ${e.amount.toLocaleString()} ${e.currency}` : ""}
                 {(e as Expense & {receiptUri?:string}).receiptUri ? " · 🧾 영수증" : ""}
               </Text></View><Text style={styles.bold}>{won(e.krwAmount)}</Text></View>
               <View style={styles.row}><Pressable onPress={()=>editExpense(e)}><Text style={styles.link}>수정</Text></Pressable><Pressable onPress={()=>deleteExpense(e.id)}><Text style={styles.danger}>삭제</Text></Pressable></View>
