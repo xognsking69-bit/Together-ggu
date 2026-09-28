@@ -16,11 +16,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: trip-split-app/package-lock.json
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install dependencies
+        working-directory: trip-split-app
+        run: npm ci
       - name: Check build status
+        working-directory: trip-split-app
         env:
           BUILD_ID: ${{ inputs.build_id }}
         run: |
