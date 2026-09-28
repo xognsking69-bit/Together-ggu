@@ -67,12 +67,9 @@ jobs:
               const body = await response.text();
               console.log('Log file', index, 'HTTP', response.status, 'bytes', body.length);
               if (!response.ok) continue;
-              const lines = body.split(String.fromCharCode(10));
-              const hits = lines.map((line, i) => /FAILURE:|What went wrong|error:|ERROR|Execution failed|Could not resolve|failed with an exception/i.test(line) ? i : -1).filter(i => i >= 0);
-              for (const i of hits.slice(-25)) {
-                const safe = lines.slice(Math.max(0, i - 1), Math.min(lines.length, i + 3)).join(' | ');
-                console.log('Log line', i, safe.slice(0, 1000));
-              }
+              const entries = body.split(String.fromCharCode(10)).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
+              const gradle = entries.filter(e => e.phase === 'RUN_GRADLEW');
+              console.log('Gradle messages near failure:', gradle.slice(-65).map(e => e.msg).join(String.fromCharCode(10)));
             }
           })().catch(e => { console.error(e.message); process.exitCode = 1; });
           NODE
