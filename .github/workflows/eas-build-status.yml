@@ -47,3 +47,28 @@ jobs:
             error: b.error,
           }, null, 2));
           NODE
+      - name: Inspect failed Android Gradle phase
+        if: ${{ inputs.build_id == '86380f93-a5f8-4eb2-ad11-7491cbd412a8' }}
+        working-directory: trip-split-app
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const b = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/build.json', 'utf8'));
+          console.log('Build log metadata:', { keys: Object.keys(b), fileCount: b.logFiles?.length ?? 0 });
+          (async () => {
+            for (const [index, file] of (b.logFiles || []).entries()) {
+              const url = typeof file === 'string' ? file : file?.url;
+              if (!url) continue;
+              const response = await fetch(url);
+              const body = await response.text();
+              console.log('Log file', index, 'HTTP', response.status, 'bytes', body.length);
+              if (!response.ok) continue;
+              const lines = body.split(/\\r?\\n/);
+              const hits = lines.map((line, i) => /FAILURE:|What went wrong|\\berror:|\\bERROR\\b|Execution failed|Could not resolve|failed with an exception/i.test(line) ? i : -1).filter(i => i >= 0);
+              for (const i of hits.slice(-25)) {
+                const safe = lines.slice(Math.max(0, i - 1), Math.min(lines.length, i + 3)).join('\\n').replace(/https?:\\/\\/\\S+/g, '[URL]');
+                console.log('Log line', i, safe.slice(0, 1000));
+              }
+            }
+          })().catch(e => { console.error(e.message); process.exitCode = 1; });
+          NODE
