@@ -2,7 +2,7 @@ import { CURRENCIES, CURRENCY_NAMES } from "../currencies";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Animated, Easing, Image, Modal, SafeAreaView, ScrollView, Share,
-  StyleSheet, useWindowDimensions, View, Platform, Pressable as RNPressable
+  StyleSheet, useWindowDimensions, View, Platform, Keyboard, Pressable as RNPressable
 } from "react-native";
 
 import TripCalendar, { type TripPlan } from "../components/trip-calendar";
@@ -34,7 +34,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.18";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.19";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -307,6 +307,8 @@ function IndexContent() {
   const [rateDate, setRateDate] = useState<string | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
   const [currency, setCurrency] = useState<Expense["currency"]>("KRW");
+  const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
+  useEffect(() => { setCurrencyMenuOpen(false); }, [tab, expenseView]);
   const [category, setCategory] = useState("식비");
   const [date, setDate] = useState(today());
   const [payerId, setPayerId] = useState(ME_ID);
@@ -897,6 +899,7 @@ if (!activeTrip) return null;
   }, [currency, rateMode]);
 
   function resetForm() {
+    setCurrencyMenuOpen(false);
     setTitle(""); setAmount(""); setRate("1"); setCurrency("KRW"); setRateMode("auto");
     setRateDate(null); setRateError(null); setCategory("식비");
     setPayerId(state.profile.id); setParticipants(activeTrip.people.map(p=>p.id));
@@ -935,6 +938,7 @@ if (!activeTrip) return null;
   }
 
   function editExpense(e:Expense) {
+    setCurrencyMenuOpen(false);
     const receiptExpense = e as Expense & {
       receiptUri?: string;
       receiptAnalysis?: ReceiptResult;
@@ -2055,13 +2059,38 @@ if (!activeTrip) return null;
           </Pressable>
           <Field label="금액" value={amount} onChangeText={setAmount} keyboardType="decimal-pad"/>
           <Text style={styles.label}>통화</Text>
-          <View style={styles.chips}>{currencies.map(x=><Chip key={x} text={`${x} · ${CURRENCY_NAMES[x]}`} selected={currency===x} onPress={()=>{
-            if (x === currency) return;
-            rateRequestId.current += 1;
-            if (x !== currency && x !== "KRW") { setRate(""); setRateDate(null); setRateError(null); }
-            setCurrency(x);
-            if (x === "KRW") { setRate("1"); setRateDate(today()); setRateError(null); }
-          }}/>)}</View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`통화 선택, ${currency} ${CURRENCY_NAMES[currency]}`}
+            accessibilityState={{ expanded: currencyMenuOpen }}
+            onPress={() => { Keyboard.dismiss(); setCurrencyMenuOpen(open => !open); }}
+            style={[styles.currencySelect, { backgroundColor: appearanceColors.input, borderColor: currencyMenuOpen ? theme.accent : appearanceColors.border }]}
+          >
+            <Text style={[styles.currencySelectText, { color: appearanceColors.text }]}>{currency} · {CURRENCY_NAMES[currency]}</Text>
+            <Text style={{ color: theme.accent }}>{currencyMenuOpen ? "▴" : "▾"}</Text>
+          </Pressable>
+          {currencyMenuOpen && <View style={[styles.currencyMenu, { backgroundColor: appearanceColors.input, borderColor: appearanceColors.border }]}>
+            <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={styles.currencyMenuScroll}>
+              {currencies.map(x => <Pressable
+                key={x}
+                accessibilityRole="button"
+                accessibilityLabel={`${x} ${CURRENCY_NAMES[x]}`}
+                accessibilityState={{ selected: currency === x }}
+                style={[styles.currencyOption, currency === x && { backgroundColor: uiAccentSoft }]}
+                onPress={() => {
+                  setCurrencyMenuOpen(false);
+                  if (x === currency) return;
+                  rateRequestId.current += 1;
+                  if (x !== "KRW") { setRate(""); setRateDate(null); setRateError(null); }
+                  setCurrency(x);
+                  if (x === "KRW") { setRate("1"); setRateDate(today()); setRateError(null); }
+                }}
+              >
+                <Text style={[styles.currencyOptionText, { color: currency === x ? theme.accent : appearanceColors.text }]}>{x} · {CURRENCY_NAMES[x]}</Text>
+                {currency === x && <Text style={{ color: theme.accent }}>✓</Text>}
+              </Pressable>)}
+            </ScrollView>
+          </View>}
           {currency !== "KRW" && <>
             <Text style={styles.label}>환율 방식</Text>
             <View style={styles.rateModeRow}>
@@ -3513,6 +3542,15 @@ const styles=StyleSheet.create({
     fontSize:14,
     fontWeight:"900"
   },
+  currencySelect:{
+    minHeight:50, borderWidth:1.5, borderRadius:15, paddingHorizontal:13,
+    flexDirection:"row", alignItems:"center", gap:8
+  },
+  currencySelectText:{flex:1,fontSize:14,fontWeight:"800"},
+  currencyMenu:{borderWidth:1,borderRadius:15,marginTop:6,overflow:"hidden"},
+  currencyMenuScroll:{maxHeight:250},
+  currencyOption:{minHeight:48,paddingHorizontal:14,paddingVertical:12,flexDirection:"row",alignItems:"center",gap:8},
+  currencyOptionText:{flex:1,fontSize:14,fontWeight:"600"},
   dateSelectButton:{
     minHeight:50,
     borderWidth:1.5,
