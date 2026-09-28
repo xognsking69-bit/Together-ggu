@@ -1,3 +1,4 @@
+import type { Currency } from "./currencies";
 export type Person = { id: string; name: string };
 
 export type Expense = {
@@ -6,7 +7,7 @@ export type Expense = {
   category: string;
   date: string;
   amount: number;
-  currency: "KRW" | "JPY" | "USD" | "EUR";
+  currency: Currency;
   rate: number;
   krwAmount: number;
   payerId: string;
