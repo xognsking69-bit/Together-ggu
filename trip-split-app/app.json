@@ -3,7 +3,7 @@
     "name": "Togetrip",
     "slug": "togetrip",
     "owner": "susysisu",
-    "version": "3.28.18",
+    "version": "3.28.19",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tripsplitapp",
@@ -11,7 +11,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.susysisu.togetrip.ios",
-      "buildNumber": "38",
+      "buildNumber": "39",
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -25,7 +25,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.togetrip.app",
-      "versionCode": 38
+      "versionCode": 39
     },
     "web": {
       "output": "static",
