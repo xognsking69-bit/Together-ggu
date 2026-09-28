@@ -11,6 +11,7 @@ import { computeBalances, minimalTransfers } from "../settlement";
 import { loadState, saveState } from "../storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
+import HomeBannerAd from "../components/home-banner-ad";
 import SmoothPressable from "../components/smooth-pressable";
 import { SmoothText as Text, SmoothTextInput as TextInput } from "../components/smooth-text";
 import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../components/appearance-context";
@@ -32,7 +33,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.16";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.17";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -1951,6 +1952,7 @@ if (!activeTrip) return null;
               );
             })}
           </Card>
+          <HomeBannerAd />
         </>}
 
         {tab==="schedule" && <>

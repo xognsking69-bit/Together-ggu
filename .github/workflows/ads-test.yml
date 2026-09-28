@@ -1,0 +1,32 @@
+name: Togetrip Ad Test Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: trip-split-app/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install dependencies
+        working-directory: trip-split-app
+        run: npm ci
+      - name: Link the existing EAS project
+        working-directory: trip-split-app
+        run: eas init --account susysisu --non-interactive
+      - name: Start Android test APK build
+        working-directory: trip-split-app
+        run: eas build --platform android --profile ads-test --non-interactive --no-wait
