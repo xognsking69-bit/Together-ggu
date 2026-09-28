@@ -3,6 +3,10 @@ name: Togetrip EAS Build Status
 on:
   workflow_dispatch:
     inputs:
+      submission_id:
+        description: Optional EAS iOS submission ID to inspect
+        required: false
+        type: string
       build_id:
         description: EAS build ID to inspect
         required: true
@@ -71,4 +75,18 @@ jobs:
               }
             }
           })().catch(e => { console.error(e.message); process.exitCode = 1; });
+          NODE
+      - name: Check iOS submission status
+        if: ${{ inputs.submission_id != '' }}
+        working-directory: trip-split-app
+        env:
+          SUBMISSION_ID: ${{ inputs.submission_id }}
+        run: |
+          eas submit:list --platform ios --limit 10 --json > "$RUNNER_TEMP/submissions.json"
+          node <<'NODE'
+          const fs = require('fs');
+          const submissions = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/submissions.json', 'utf8'));
+          const b = submissions.find(s => s.id === process.env.SUBMISSION_ID);
+          if (!b) throw new Error('Submission ID not in recent 10');
+          console.log(JSON.stringify({ id: b.id, status: b.status, platform: b.platform, error: b.error }, null, 2));
           NODE
