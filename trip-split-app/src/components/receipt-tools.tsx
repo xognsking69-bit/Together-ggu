@@ -1,3 +1,4 @@
+import { CURRENCIES, type Currency } from "../currencies";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -18,7 +19,7 @@ export type ReceiptResult = {
   merchant?: string;
   date?: string;
   amount?: number;
-  currency?: "KRW" | "JPY" | "USD" | "EUR";
+  currency?: Currency;
   category?: "식비" | "카페" | "교통" | "숙박" | "관광" | "쇼핑" | "기타";
   confidence?: number;
 };
@@ -80,7 +81,7 @@ async function getGuestSession(endpoint: string, request: typeof fetch): Promise
   finally { guestSessionPromise = null; }
 }
 
-const ALLOWED_CURRENCIES = ["KRW", "JPY", "USD", "EUR"] as const;
+const ALLOWED_CURRENCIES = CURRENCIES;
 const ALLOWED_CATEGORIES = ["식비", "카페", "교통", "숙박", "관광", "쇼핑", "기타"] as const;
 
 function normalizeResult(raw: any): ReceiptResult {
