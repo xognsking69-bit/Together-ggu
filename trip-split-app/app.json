@@ -38,7 +38,12 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-secure-store", { "configureAndroidBackup": true }],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -66,5 +71,8 @@
       "typedRoutes": true,
       "reactCompiler": true
     }
+  },
+  "react-native-google-mobile-ads": {
+    "android_sdk": "classic"
   }
 }
