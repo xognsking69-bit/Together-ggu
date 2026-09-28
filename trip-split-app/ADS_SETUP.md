@@ -4,7 +4,7 @@
 
 ## 테스트 빌드
 
-Android APK는 GitHub Actions의 **Togetrip Ad Test Build** 워크플로를 수동 실행하거나 `eas build --platform android --profile ads-test`로 만들 수 있습니다. iOS도 **Togetrip iOS Ad Test Build** 워크플로 또는 `eas build --platform ios --profile ads-test`를 사용합니다. `ads-test` 프로필은 `TOGETRIP_ADS_MODE=test`를 설정하고 Google의 공식 데모 앱 ID와 배너 광고 단위를 사용합니다. 수익은 발생하지 않습니다. Expo Go는 이 네이티브 SDK를 실행할 수 없습니다.
+Android APK는 GitHub Actions의 **Togetrip Ad Test Build** 워크플로를 수동 실행하거나 `eas build --platform android --profile ads-test`로 만들 수 있습니다. iOS는 **Togetrip iOS Ad Test Build** 워크플로 또는 `eas build --platform ios --profile ads-test-ios`로 스토어 서명 빌드를 만듭니다. iOS 빌드는 직접 설치용이 아니며 TestFlight에 제출해야 기기에서 확인할 수 있습니다. 두 테스트 프로필은 `TOGETRIP_ADS_MODE=test`를 설정하고 Google의 공식 데모 앱 ID와 배너 광고 단위를 사용합니다. 수익은 발생하지 않습니다. Expo Go는 이 네이티브 SDK를 실행할 수 없습니다.
 
 ## 실제 광고를 켜기 전
 

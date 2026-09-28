@@ -29,4 +29,4 @@ jobs:
         run: eas init --account susysisu --non-interactive
       - name: Start iOS test build
         working-directory: trip-split-app
-        run: eas build --platform ios --profile ads-test --non-interactive --no-wait
+        run: eas build --platform ios --profile ads-test-ios --non-interactive --no-wait

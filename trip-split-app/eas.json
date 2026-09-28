@@ -16,6 +16,13 @@
         "TOGETRIP_ADS_MODE": "test"
       }
     },
+    "ads-test-ios": {
+      "extends": "production",
+      "environment": "preview",
+      "env": {
+        "TOGETRIP_ADS_MODE": "test"
+      }
+    },
     "production": {
       "environment": "production",
       "autoIncrement": false,
