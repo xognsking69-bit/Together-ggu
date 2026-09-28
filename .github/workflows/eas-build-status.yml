@@ -1,0 +1,39 @@
+name: Togetrip EAS Build Status
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: EAS build ID to inspect
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Check build status
+        env:
+          BUILD_ID: ${{ inputs.build_id }}
+        run: |
+          eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"
+          node <<'NODE'
+          const fs = require('fs');
+          const b = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/build.json', 'utf8'));
+          console.log(JSON.stringify({
+            id: b.id,
+            status: b.status,
+            platform: b.platform,
+            appVersion: b.appVersion,
+            appBuildVersion: b.appBuildVersion,
+            error: b.error,
+          }, null, 2));
+          NODE
