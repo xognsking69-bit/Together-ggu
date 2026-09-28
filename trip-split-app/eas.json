@@ -10,6 +10,12 @@
         "buildType": "apk"
       }
     },
+    "ads-test": {
+      "extends": "preview",
+      "env": {
+        "TOGETRIP_ADS_MODE": "test"
+      }
+    },
     "production": {
       "environment": "production",
       "autoIncrement": false,
