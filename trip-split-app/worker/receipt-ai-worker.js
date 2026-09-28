@@ -7,9 +7,9 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const TOKEN_LIFETIME_SECONDS = 365 * 24 * 60 * 60;
 const USAGE_RETENTION_MS = 365 * 24 * 60 * 60 * 1000;
 const ALLOWED_CATEGORIES = ["식비", "카페", "교통", "숙박", "관광", "쇼핑", "기타"];
-const ALLOWED_CURRENCIES = ["KRW", "JPY", "USD", "EUR"];
+const ALLOWED_CURRENCIES = ["KRW", "JPY", "USD", "EUR", "GBP", "CNY", "HKD", "TWD", "THB", "VND", "SGD", "AUD", "CAD", "CHF", "NZD", "MYR", "PHP", "IDR", "INR", "AED"];
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const RECEIPT_PROMPT = "Read this receipt and return ONLY a JSON object with merchant, date (YYYY-MM-DD or null), amount (final total number or null), currency (KRW, JPY, USD, EUR or null), category (식비, 카페, 교통, 숙박, 관광, 쇼핑, 기타 or null), confidence (0 to 1). Use null when uncertain. Receipt text may be Korean or another language.";
+const RECEIPT_PROMPT = "Read this receipt and return ONLY a JSON object with merchant, date (YYYY-MM-DD or null), amount (final total number or null), currency (KRW, JPY, USD, EUR, GBP, CNY, HKD, TWD, THB, VND, SGD, AUD, CAD, CHF, NZD, MYR, PHP, IDR, INR, AED or null), category (식비, 카페, 교통, 숙박, 관광, 쇼핑, 기타 or null), confidence (0 to 1). Use null when uncertain. Receipt text may be Korean or another language.";
 
 export default {
   async fetch(request, env) {
@@ -207,7 +207,7 @@ async function analyzeReceipt(env, dataUrl) {
       model: env.RECEIPT_AI_MODEL || "gpt-5.6-luna",
       reasoning: { effort: "none" },
       input: [{ role: "user", content: [
-        { type: "input_text", text: "Analyze this receipt image. Extract the merchant/store name, purchase date, grand total amount, currency, and best expense category. Return date as YYYY-MM-DD when visible, otherwise null. Amount must be the final total as a number, not a subtotal. Currency must be KRW, JPY, USD, or EUR. Category must be 식비, 카페, 교통, 숙박, 관광, 쇼핑, or 기타. Confidence must be from 0 to 1. Use null for fields you cannot determine." },
+        { type: "input_text", text: "Analyze this receipt image. Extract the merchant/store name, purchase date, grand total amount, currency, and best expense category. Return date as YYYY-MM-DD when visible, otherwise null. Amount must be the final total as a number, not a subtotal. Currency must be KRW, JPY, USD, EUR, GBP, CNY, HKD, TWD, THB, VND, SGD, AUD, CAD, CHF, NZD, MYR, PHP, IDR, INR, AED. Category must be 식비, 카페, 교통, 숙박, 관광, 쇼핑, or 기타. Confidence must be from 0 to 1. Use null for fields you cannot determine." },
         { type: "input_image", image_url: dataUrl }
       ] }],
       text: { format: { type: "json_schema", name: "receipt_analysis", strict: true, schema: {

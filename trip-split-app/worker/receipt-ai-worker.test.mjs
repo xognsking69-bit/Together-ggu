@@ -56,7 +56,9 @@ test("guest sessions are signed, stable on refresh, and required for usage", asy
   assert.equal(refreshed.status, 200);
   assert.equal((await refreshed.json()).guestId, first.data.guestId);
 
-  const tampered = first.data.token.slice(0, -1) + (first.data.token.endsWith("a") ? "b" : "a");
+  const parts = first.data.token.split(".");
+  parts[1] = (parts[1][0] === "a" ? "b" : "a") + parts[1].slice(1);
+  const tampered = parts.join(".");
   const rejected = await worker.fetch(new Request("https://worker.test/receipt/usage", {
     headers: { Authorization: `Bearer ${tampered}` }
   }), env);
@@ -174,3 +176,19 @@ test("global daily cap stops a second guest before calling the model", async () 
   assert.equal((await capped.json()).code, "SERVICE_DAILY_LIMIT_REACHED");
   assert.equal(aiCalls, 1);
 });
+
+for (const currency of ["KRW", "JPY", "USD", "EUR", "GBP", "CNY", "HKD", "TWD", "THB", "VND", "SGD", "AUD", "CAD", "CHF", "NZD", "MYR", "PHP", "IDR", "INR", "AED"]) {
+  test(`receipt analysis preserves ${currency}`, async () => {
+    const env = makeEnv({ RECEIPT_AI_PROVIDER: "cloudflare", AI: { async run() {
+      return { answer: JSON.stringify({ merchant: "Currency test", amount: 123.45, currency, category: "기타" }) };
+    } } });
+    const session = await createSession(env);
+    const form = new FormData();
+    form.append("receipt", new Blob([new Uint8Array([1,2,3])], { type: "image/png" }), "receipt.png");
+    const response = await worker.fetch(new Request("https://worker.test/receipt/analyze", {
+      method: "POST", headers: { Authorization: `Bearer ${session.data.token}` }, body: form
+    }), env);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).currency, currency);
+  });
+}
