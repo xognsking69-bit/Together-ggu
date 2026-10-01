@@ -35,7 +35,9 @@ module.exports = () => {
         androidAppId: ids.android,
         iosAppId: ids.ios,
         delayAppMeasurementInit: true,
-        userTrackingUsageDescription: 'Togetrip은 맞춤형 광고 제공을 위해 광고 식별자를 사용할 수 있습니다.',
+        ...(mode === 'live' ? {
+          userTrackingUsageDescription: 'Togetrip은 맞춤형 광고 제공을 위해 광고 식별자를 사용할 수 있습니다.',
+        } : {}),
       }],
     ],
     extra: {
