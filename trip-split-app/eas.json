@@ -30,6 +30,16 @@
         "buildType": "app-bundle"
       },
       "ios": {}
+    },
+    "production-ads": {
+      "extends": "production",
+      "env": {
+        "TOGETRIP_ADS_MODE": "live",
+        "TOGETRIP_ADMOB_ANDROID_APP_ID": "ca-app-pub-1867930342924422~4834113520",
+        "TOGETRIP_ADMOB_IOS_APP_ID": "ca-app-pub-1867930342924422~3213995818",
+        "EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID": "ca-app-pub-1867930342924422/2084746976",
+        "EXPO_PUBLIC_ADMOB_IOS_BANNER_ID": "ca-app-pub-1867930342924422/4089851373"
+      }
     }
   },
   "submit": {
