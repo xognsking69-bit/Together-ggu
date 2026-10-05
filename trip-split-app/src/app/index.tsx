@@ -18,6 +18,7 @@ import { SmoothText as Text, SmoothTextInput as TextInput } from "../components/
 import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../components/appearance-context";
 import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
+import { useLocalSearchParams } from "expo-router";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 
@@ -34,7 +35,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.19";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.20";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -282,6 +283,8 @@ function migrate(saved:any): AppState {
 }
 
 function IndexContent() {
+  const { payload: routePayload } = useLocalSearchParams<{ payload?: string | string[] }>();
+  const invitePayload = Array.isArray(routePayload) ? routePayload[0] : routePayload;
   const { width } = useWindowDimensions();
   const { mode: appearanceMode, setMode: setAppearanceMode, isDark, colors: appearanceColors } = useAppAppearance();
   const screenMotion = useRef(new Animated.Value(1)).current;
@@ -481,16 +484,12 @@ function IndexContent() {
   }, [sharedRooms, sharedRoomsReady]);
 
   useEffect(() => {
-    const applyUrl = (url?:string | null) => {
-      if (!url) return;
+    let active = true;
+    const applyPayload = (payload?: string) => {
+      if (!active || !payload) return;
       try {
-        const parsed = Linking.parse(url);
-        if (parsed.path !== "invite" && parsed.hostname !== "invite") return;
-        const payloadValue = parsed.queryParams?.payload;
-        const payload = Array.isArray(payloadValue) ? payloadValue[0] : payloadValue;
-        if (!payload || typeof payload !== "string") return;
         const invite = JSON.parse(payload);
-        if (!invite?.code || !invite?.token) return;
+        if (typeof invite?.code !== "string" || !invite.code || typeof invite?.token !== "string" || !invite.token) return;
         const raw = `TRIPSPLIT_LIVE_V1:${encodeURIComponent(JSON.stringify(invite))}`;
         setSharedInviteText(raw);
         setTab("manage");
@@ -498,10 +497,21 @@ function IndexContent() {
         setSharedStatusText("초대 링크를 받았어요. ‘초대코드로 참가하기’를 눌러 연결해주세요.");
       } catch {}
     };
-    Linking.getInitialURL().then(applyUrl).catch(() => {});
+    const applyUrl = (url?: string | null) => {
+      if (!url) return;
+      try {
+        const parsed = Linking.parse(url);
+        if (parsed.path !== "invite" && parsed.hostname !== "invite") return;
+        const value = parsed.queryParams?.payload;
+        applyPayload(Array.isArray(value) ? value[0] : value);
+      } catch {}
+    };
+    // A new route's invite takes priority over the URL that launched the app.
+    if (invitePayload) applyPayload(invitePayload);
+    else Linking.getInitialURL().then(applyUrl).catch(() => {});
     const subscription = Linking.addEventListener("url", event => applyUrl(event.url));
-    return () => subscription.remove();
-  }, []);
+    return () => { active = false; subscription.remove(); };
+  }, [invitePayload]);
 
   useEffect(() => {
     screenMotion.setValue(0);
