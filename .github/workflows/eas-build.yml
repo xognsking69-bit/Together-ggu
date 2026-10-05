@@ -13,6 +13,15 @@ on:
           - ios
           - all
 
+      profile:
+        description: Advertising mode
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - production-ads
+
 permissions:
   contents: read
 
@@ -57,4 +66,4 @@ jobs:
 
       - name: Start production build on EAS
         working-directory: trip-split-app
-        run: eas build --platform "${{ inputs.platform }}" --profile production --non-interactive --no-wait
+        run: eas build --platform "${{ inputs.platform }}" --profile "${{ inputs.profile }}" --non-interactive --no-wait
