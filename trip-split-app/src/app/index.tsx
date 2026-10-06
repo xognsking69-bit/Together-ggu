@@ -35,7 +35,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.21";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.22";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -1991,7 +1991,7 @@ if (!activeTrip) return null;
             </Pressable>
           </View>
           <Card cardStyle={cardDecorStyle} title="📍 일정 · 지도">
-            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>일정에 저장한 장소는 ‘지도에서 보기’로 바로 열 수 있어요. iPhone은 Apple 지도, Android는 기본 지도/Google 지도를 사용해요.</Text>
+            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>{Platform.OS === "ios" ? "일정에 저장한 장소는 ‘지도에서 보기’로 Apple 지도에서 바로 열 수 있어요." : Platform.OS === "android" ? "일정에 저장한 장소는 ‘지도에서 보기’로 기본 지도 또는 Google 지도에서 바로 열 수 있어요." : "일정에 저장한 장소는 ‘지도에서 보기’로 바로 열 수 있어요."}</Text>
             {activePlans.length===0 ? <Text style={[styles.emptyText,isDark&&{color:appearanceColors.muted}]}>아직 일정이 없어요. 달력의 날짜를 눌러 일정을 추가해보세요.</Text> :
               activePlans.map(plan=>(
                 <View key={plan.id} style={[styles.togetripPlanRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}> 
