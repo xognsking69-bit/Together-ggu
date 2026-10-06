@@ -2,6 +2,19 @@ name: Export Togetrip Android bundle
 
 on:
   workflow_dispatch:
+    inputs:
+      build_id:
+        description: EAS Android build ID to export
+        required: true
+        type: string
+      expected_version:
+        description: App version to verify
+        required: true
+        type: string
+      expected_version_code:
+        description: Android version code to verify
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -9,44 +22,58 @@ permissions:
 jobs:
   export:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
+    env:
+      BUILD_ID: ${{ inputs.build_id }}
+      EXPECTED_VERSION: ${{ inputs.expected_version }}
+      EXPECTED_VERSION_CODE: ${{ inputs.expected_version_code }}
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Download completed EAS Android build
+      - name: Wait for and verify selected Android build
         working-directory: trip-split-app
-        env:
-          BUILD_ID: 57b0cd19-d008-44b0-9ae9-bc4f78caf131
+        shell: bash
         run: |
           set -euo pipefail
           npm ci
-          eas init --account susysisu --non-interactive
-          if ! eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"; then
-            echo "Build lookup failed; recent Android build summary:"
-            eas build:list --platform android --limit 5 --json | node -e 'let d="";process.stdin.on("data",x=>d+=x).on("end",()=>{for(const b of JSON.parse(d)) console.log(JSON.stringify({id:b.id,status:b.status,appVersion:b.appVersion,appBuildVersion:b.appBuildVersion}));})'
-            exit 1
-          fi
-          node <<'NODE'
-          const fs = require('fs');
+          for attempt in $(seq 1 150); do
+            eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"
+            node <<'NODE'
+          const fs = require('node:fs');
           const b = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/build.json', 'utf8'));
-          const status = String(b.status || '').toLowerCase();
-          const platform = String(b.platform || '').toLowerCase();
+          if (b.id !== process.env.BUILD_ID || b.platform !== 'ANDROID' ||
+              b.appVersion !== process.env.EXPECTED_VERSION ||
+              String(b.appBuildVersion) !== process.env.EXPECTED_VERSION_CODE) {
+            throw Error('Android build identity or version mismatch');
+          }
+          console.log(JSON.stringify({id:b.id,status:b.status,appVersion:b.appVersion,appBuildVersion:b.appBuildVersion}));
+          NODE
+            status=$(node -p "JSON.parse(require('node:fs').readFileSync(process.env.RUNNER_TEMP + '/build.json', 'utf8')).status")
+            case "$status" in
+              FINISHED) break ;;
+              ERRORED|CANCELED) echo "Android build ended: $status" >&2; exit 1 ;;
+            esac
+            sleep 30
+          done
+          node <<'NODE'
+          const fs = require('node:fs');
+          const b = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/build.json', 'utf8'));
           const url = b.artifacts?.buildUrl || b.artifacts?.applicationArchiveUrl;
-          console.log(JSON.stringify({id: b.id, status: b.status, platform: b.platform, appVersion: b.appVersion, appBuildVersion: b.appBuildVersion}));
-          if (status !== 'finished' || platform !== 'android' || !url) throw Error('Android build is not finished or has no artifact');
+          if (b.status !== 'FINISHED' || !url) throw Error('Android build unfinished or missing artifact');
           fs.writeFileSync(process.env.RUNNER_TEMP + '/artifact-url', url);
           NODE
-          curl --fail --location --silent --show-error --retry 3 --output "$RUNNER_TEMP/togetrip-3.28.19-39.aab" "$(cat "$RUNNER_TEMP/artifact-url")"
-          file "$RUNNER_TEMP/togetrip-3.28.19-39.aab"
-          unzip -t "$RUNNER_TEMP/togetrip-3.28.19-39.aab" | tail -1
-          ls -lh "$RUNNER_TEMP/togetrip-3.28.19-39.aab"
-      - name: Upload Android app bundle
+          curl --fail --location --silent --show-error --retry 3 --output "$RUNNER_TEMP/togetrip-${EXPECTED_VERSION}-${EXPECTED_VERSION_CODE}.aab" "$(cat "$RUNNER_TEMP/artifact-url")"
+          unzip -t "$RUNNER_TEMP/togetrip-${EXPECTED_VERSION}-${EXPECTED_VERSION_CODE}.aab" | tail -1
+      - name: Upload verified Android bundle
         uses: actions/upload-artifact@v4
         with:
-          name: togetrip-3.28.19-39-aab
-          path: ${{ runner.temp }}/togetrip-3.28.19-39.aab
+          name: togetrip-${{ inputs.expected_version }}-${{ inputs.expected_version_code }}-aab
+          path: ${{ runner.temp }}/togetrip-${{ inputs.expected_version }}-${{ inputs.expected_version_code }}.aab
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
