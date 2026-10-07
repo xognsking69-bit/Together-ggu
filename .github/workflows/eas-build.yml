@@ -62,7 +62,25 @@ jobs:
 
       - name: Verify Expo configuration
         working-directory: trip-split-app
-        run: npx expo config --type public
+        env:
+          EAS_BUILD_PROFILE: ${{ inputs.profile }}
+        run: |
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process');
+          const assert = require('node:assert/strict');
+          const eas = require('./eas.json');
+          const profile = process.env.EAS_BUILD_PROFILE;
+          const env = { ...process.env, ...(eas.build[profile].env || {}) };
+          const config = JSON.parse(execFileSync('npx', ['expo', 'config', '--type', 'introspect', '--json'], { env, encoding: 'utf8' }));
+          assert.equal(config.version, require('./package.json').version, 'App and package versions must match');
+          if (profile === 'production-ads') {
+            const plist = config._internal?.modResults?.ios?.infoPlist;
+            assert.ok(plist, 'Generated iOS Info.plist must be available');
+            assert.equal(plist.NSUserTrackingUsageDescription, undefined, 'Non-personalized ads must not request ATT/IDFA');
+            assert.equal(plist.GADApplicationIdentifier, env.TOGETRIP_ADMOB_IOS_APP_ID, 'Live iOS AdMob ID must match');
+          }
+          console.log('Verified release', config.version, 'iOS build', config.ios.buildNumber, 'ads profile', profile);
+          NODE
 
       - name: Start production build on EAS
         working-directory: trip-split-app
