@@ -11,7 +11,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.susysisu.togetrip.ios",
-      "buildNumber": "43",
+      "buildNumber": "44",
       "config": {
         "usesNonExemptEncryption": false
       }
