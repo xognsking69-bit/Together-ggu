@@ -35,7 +35,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.22";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.23";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -4313,10 +4313,10 @@ const styles=StyleSheet.create({
   companionTripMeta:{fontSize:11.5,fontWeight:"700",color:"#7F849B",marginTop:4},
   companionSettingsButton:{backgroundColor:"#FFFFFF",borderRadius:12,paddingHorizontal:12,paddingVertical:9},
   companionSettingsText:{fontSize:11.5,fontWeight:"900"},
-  companionRoomActions:{flexDirection:"row",gap:9,marginTop:12},
-  companionRoomPrimary:{flex:1,minHeight:46,borderRadius:15,alignItems:"center",justifyContent:"center"},
-  companionRoomSecondary:{flex:1,minHeight:46,borderRadius:15,borderWidth:1,alignItems:"center",justifyContent:"center"},
-  companionRoomSecondaryText:{fontSize:12,fontWeight:"900"},
+  companionRoomActions:{flexDirection:"column",alignItems:"stretch",gap:12,marginTop:16},
+  companionRoomPrimary:{width:"100%",minHeight:56,paddingHorizontal:20,paddingVertical:14,borderRadius:15,alignItems:"center",justifyContent:"center"},
+  companionRoomSecondary:{width:"100%",minHeight:56,paddingHorizontal:20,paddingVertical:14,borderRadius:15,borderWidth:1,alignItems:"center",justifyContent:"center"},
+  companionRoomSecondaryText:{fontSize:16,fontWeight:"900",textAlign:"center"},
   togetripSectionHead:{flexDirection:"row",alignItems:"center",marginBottom:12,paddingHorizontal:2},
   togetripScreenTitle:{fontSize:23,fontWeight:"900",color:"#171B2D"},
   togetripScreenSub:{fontSize:12,color:"#85899A",marginTop:3},
