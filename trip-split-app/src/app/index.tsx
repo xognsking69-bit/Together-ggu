@@ -14,6 +14,7 @@ import { loadState, saveState } from "../storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
+import SharedInviteHelp from "../components/shared-invite-help";
 import SmoothPressable from "../components/smooth-pressable";
 import { SmoothText as Text, SmoothTextInput as TextInput } from "../components/smooth-text";
 import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../components/appearance-context";
@@ -36,7 +37,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.24";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.25";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -2182,7 +2183,7 @@ if (!activeTrip) return null;
             </View>
           </Card>
 
-          <Card cardStyle={cardDecorStyle} title="여행공동방">
+          <Card cardStyle={cardDecorStyle} title="여행공동방" help={<SharedInviteHelp/>}>
             <Text style={[styles.companionSubtitle,isDark&&{color:appearanceColors.muted}]}>초대 코드로 연결하면 일정·지출·정산을 함께 관리할 수 있어요.</Text>
             <View style={[styles.sharedRoomBanner,{backgroundColor:uiAccentSoft,borderColor:isDark?appearanceColors.border:theme.accentSoft}]}>
               <Text style={[styles.sharedRoomTitle,{color:theme.accent}]}>{activeSharedRoom?"● 공동방 연결됨":"○ 아직 연결되지 않음"}</Text>
@@ -2340,7 +2341,7 @@ if (!activeTrip) return null;
             )}
 
             <View style={styles.sharedDivider}/>
-            <Text style={[styles.label,isDark&&{color:appearanceColors.text}]}>받은 초대코드</Text>
+            <View style={styles.rowBetween}><Text style={[styles.label,isDark&&{color:appearanceColors.text}]}>받은 초대코드</Text><SharedInviteHelp/></View>
             <TextInput
               value={sharedInviteText}
               onChangeText={setSharedInviteText}
@@ -3012,8 +3013,9 @@ function ManageGroup({
 function Card({
   title,
   children,
-  cardStyle
-}:React.PropsWithChildren<{title:string;cardStyle?:object}>){
+  cardStyle,
+  help
+}:React.PropsWithChildren<{title:string;cardStyle?:object;help?:React.ReactNode}>){
   const {isDark,colors}=useAppAppearance();
   const enter = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -3027,7 +3029,7 @@ function Card({
         { scale: enter.interpolate({inputRange:[0,1],outputRange:[0.992,1]}) },
       ],
     }]}>
-      <Text style={styles.cardTitle}>{title}</Text>{children}
+      {help ? <View style={styles.rowBetween}><Text style={[styles.cardTitle,{flex:1}]}>{title}</Text>{help}</View> : <Text style={styles.cardTitle}>{title}</Text>}{children}
     </Animated.View>
   );
 }
@@ -3042,7 +3044,7 @@ const styles=StyleSheet.create({
   sharedRoomTitle:{fontSize:15,fontWeight:"900"},
   sharedRoomMeta:{fontSize:11,color:"#8589A5",fontWeight:"700",marginTop:5},
   sharedDivider:{height:1,backgroundColor:"rgba(130,135,160,0.18)",marginTop:18,marginBottom:14},
-  sharedInviteInput:{minHeight:96,textAlignVertical:"top",paddingTop:12},
+  sharedInviteInput:{minHeight:120,textAlignVertical:"top",paddingTop:12},
   sharedJoinButton:{marginTop:10,borderRadius:16,paddingVertical:14,alignItems:"center",justifyContent:"center"},
   sharedBetaNote:{fontSize:10,color:"#8589A5",fontWeight:"700",lineHeight:16,marginTop:10,textAlign:"center"},
   sharedLiveRow:{flexDirection:"row",alignItems:"center",gap:7,marginTop:10},
