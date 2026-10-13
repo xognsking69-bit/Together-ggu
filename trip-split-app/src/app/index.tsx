@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
 import SharedInviteHelp from "../components/shared-invite-help";
+import AppHelp from "../components/app-help";
 import SmoothPressable from "../components/smooth-pressable";
 import { SmoothText as Text, SmoothTextInput as TextInput } from "../components/smooth-text";
 import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../components/appearance-context";
@@ -1720,6 +1721,7 @@ if (!activeTrip) return null;
             { translateY: screenMotion.interpolate({ inputRange:[0,1], outputRange:[8,0] }) },
           ],
         }}>
+        <View style={[styles.rowBetween,{marginBottom:8}]}><Text style={[styles.muted,{flex:1},isDark&&{color:appearanceColors.muted}]}>사용법이 궁금하면 ?를 눌러주세요</Text><AppHelp topic={{home:"홈",schedule:"일정",expense:"지출",companions:"동행자",manage:"더보기",settle:"정산",game:"미니게임"}[tab]}/></View>
         {tab==="home" && <>
           <TripCalendar
             expenses={activeTrip.expenses}
@@ -2998,13 +3000,16 @@ function ManageGroup({
   const {isDark,colors}=useAppAppearance();
   return (
     <View style={[styles.card,cardStyle,isDark&&{backgroundColor:colors.surface,borderColor:colors.border,borderWidth:1}]}>
-      <Pressable onPress={onPress} style={styles.manageGroupHeader}>
+      <View style={styles.rowBetween}>
+      <Pressable onPress={onPress} style={[styles.manageGroupHeader,{flex:1}]}>
         <View style={styles.flex}>
           <Text style={[styles.manageGroupTitle,isDark&&{color:colors.text}]}>{title}</Text>
           {!!subtitle && <Text style={[styles.manageGroupSubtitle,isDark&&{color:colors.muted}]}>{subtitle}</Text>}
         </View>
         <Text style={[styles.manageChevron,isDark&&{color:colors.muted}]}>{open ? "⌃" : "⌄"}</Text>
       </Pressable>
+      <AppHelp topic={title}/>
+      </View>
       {open && <View style={styles.manageGroupBody}>{children}</View>}
     </View>
   );
@@ -3029,7 +3034,7 @@ function Card({
         { scale: enter.interpolate({inputRange:[0,1],outputRange:[0.992,1]}) },
       ],
     }]}>
-      {help ? <View style={styles.rowBetween}><Text style={[styles.cardTitle,{flex:1}]}>{title}</Text>{help}</View> : <Text style={styles.cardTitle}>{title}</Text>}{children}
+      <View style={styles.rowBetween}><Text style={[styles.cardTitle,{flex:1}]}>{title}</Text>{help || <AppHelp topic={title}/>}</View>{children}
     </Animated.View>
   );
 }

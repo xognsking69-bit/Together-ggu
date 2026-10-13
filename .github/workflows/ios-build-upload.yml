@@ -1,0 +1,62 @@
+name: Togetrip iOS Build and Upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: App version to build and upload
+        required: true
+        default: '3.28.25'
+        type: string
+      expected_build_number:
+        description: iOS build number to verify
+        required: true
+        default: '47'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-release-${{ inputs.expected_version }}-${{ inputs.expected_build_number }}
+  cancel-in-progress: false
+
+jobs:
+  build-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: trip-split-app/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install dependencies and type check
+        working-directory: trip-split-app
+        run: |
+          npm ci
+          npx tsc --noEmit
+      - name: Verify release identity
+        working-directory: trip-split-app
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          EXPECTED_BUILD_NUMBER: ${{ inputs.expected_build_number }}
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const app = require('./app.json').expo;
+          assert.equal(app.version, process.env.EXPECTED_VERSION);
+          assert.equal(app.ios.buildNumber, process.env.EXPECTED_BUILD_NUMBER);
+          assert.equal(app.version, require('./package.json').version);
+          assert.ok(fs.readFileSync('src/app/index.tsx','utf8').includes('Constants.expoConfig?.version || "' + app.version + '"'));
+          console.log('Verified iOS release', app.version, app.ios.buildNumber);
+          NODE
+      - name: Build with live ads and automatically upload after completion
+        working-directory: trip-split-app
+        run: eas build --platform ios --profile production-ads --auto-submit-with-profile production --non-interactive --no-wait
