@@ -38,7 +38,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.25";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.26";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -3001,13 +3001,13 @@ function ManageGroup({
   return (
     <View style={[styles.card,cardStyle,isDark&&{backgroundColor:colors.surface,borderColor:colors.border,borderWidth:1}]}>
       <View style={styles.rowBetween}>
-      <Pressable onPress={onPress} style={[styles.manageGroupHeader,{flex:1}]}>
+      <RNPressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{expanded:open}} onPress={onPress} style={[styles.manageGroupHeader,{flex:1,minWidth:0}]}>
         <View style={styles.flex}>
           <Text style={[styles.manageGroupTitle,isDark&&{color:colors.text}]}>{title}</Text>
           {!!subtitle && <Text style={[styles.manageGroupSubtitle,isDark&&{color:colors.muted}]}>{subtitle}</Text>}
         </View>
         <Text style={[styles.manageChevron,isDark&&{color:colors.muted}]}>{open ? "⌃" : "⌄"}</Text>
-      </Pressable>
+      </RNPressable>
       <AppHelp topic={title}/>
       </View>
       {open && <View style={styles.manageGroupBody}>{children}</View>}
@@ -4341,3 +4341,4 @@ const styles=StyleSheet.create({
   planReminderCheck:{width:24,height:24,borderRadius:8,borderWidth:1.5,alignItems:"center",justifyContent:"center"},
   planReminderCheckText:{color:"#FFFFFF",fontWeight:"900",fontSize:14},
 });
+
