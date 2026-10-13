@@ -1,10 +1,11 @@
 import { CURRENCIES, CURRENCY_NAMES } from "../currencies";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert, Animated, Easing, Image, Modal, SafeAreaView, ScrollView, Share,
+  Alert, Animated, Easing, Image, Modal, ScrollView, Share,
   StyleSheet, useWindowDimensions, View, Platform, Keyboard, Pressable as RNPressable
 } from "react-native";
 
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import TripCalendar, { type TripPlan } from "../components/trip-calendar";
 import GameZone from "../components/game-zone";
 import type { AppState, CheckItem, Expense, Person, Trip } from "../types";
@@ -35,7 +36,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.23";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.24";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -283,6 +284,7 @@ function migrate(saved:any): AppState {
 }
 
 function IndexContent() {
+  const safeInsets = useSafeAreaInsets();
   const { payload: routePayload } = useLocalSearchParams<{ payload?: string | string[] }>();
   const invitePayload = Array.isArray(routePayload) ? routePayload[0] : routePayload;
   const { width } = useWindowDimensions();
@@ -1707,9 +1709,9 @@ if (!activeTrip) return null;
   if (!ready) return <SafeAreaView style={[styles.safe,{backgroundColor:theme.bg}]}><View style={styles.center}><Text>불러오는 중...</Text></View></SafeAreaView>;
 
   return (
-    <SafeAreaView style={[styles.safe,{backgroundColor:screenBackground}]}>
+    <SafeAreaView edges={["top","left","right"]} style={[styles.safe,{backgroundColor:screenBackground}]}>
       <MotionBackdrop accent={theme.accent} accentSoft={uiAccentSoft} />
-      <ScrollView keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS==="android"} contentContainerStyle={[styles.content,{paddingHorizontal:horizontalPadding,maxWidth:contentMaxWidth,width:"100%",alignSelf:"center"}]}>
+      <ScrollView keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS==="android"} contentContainerStyle={[styles.content,{paddingBottom:112+safeInsets.bottom,paddingHorizontal:horizontalPadding,maxWidth:contentMaxWidth,width:"100%",alignSelf:"center"}]}>
         <Animated.View style={{
           width:"100%",
           opacity: screenMotion,
@@ -2839,7 +2841,7 @@ if (!activeTrip) return null;
         onSelect={applyPickedDate}
       />
 
-      <View style={[styles.tabs,isDark&&{backgroundColor:appearanceColors.nav,borderColor:appearanceColors.border,borderWidth:1},isTiny&&styles.tabsTiny,{left:navInset,right:navInset,bottom:isTiny?5:isCompact?6:8}]}>
+      <View style={[styles.tabs,isDark&&{backgroundColor:appearanceColors.nav,borderColor:appearanceColors.border,borderWidth:1},isTiny&&styles.tabsTiny,{left:navInset,right:navInset,bottom:safeInsets.bottom+(isTiny?5:isCompact?6:8)}]}>
         <TabButton icon="🏠" label="홈" active={tab==="home"} onPress={()=>setTab("home")}/>
         <TabButton icon="🗓️" label="일정" active={tab==="schedule"} onPress={()=>setTab("schedule")}/>
         <TabButton icon="＋" label="지출" active={tab==="expense"} onPress={()=>{if(!editingId)resetForm();setExpenseView("add");setTab("expense");}}/>
