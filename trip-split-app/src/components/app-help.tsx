@@ -2,6 +2,7 @@ import { SmoothText as Text } from "./smooth-text";
 import React, { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppLanguage, translateUI } from "./language-context";
 import { useAppAppearance } from "./appearance-context";
 
 const INVITE_STEPS = [
@@ -27,16 +28,18 @@ const GUIDES: Array<{ match: RegExp; guide: Guide }> = [
   { match: /게임/, guide: { title: "미니게임", steps: [["참여자 선택", "함께할 동행자를 선택하고 게임을 진행해요."], ["결제자에 적용", "게임 결과에서 결제자로 사용하면 지출 입력 화면으로 이동해요. 금액 등 필요한 내용을 확인하고 저장해야 지출에 반영돼요."]] } },
   { match: /더보기|여행 관리/, guide: { title: "더보기 사용법", steps: [["정산과 미니게임", "상단 버튼으로 정산 결과를 확인하거나 미니게임을 열어요."], ["기능 펼치기", "준비물·공동 여행방·꾸미기·백업·내 정보 제목을 누르면 상세 설정이 펼쳐져요."], ["도움말 보기", "각 기능 옆의 ?를 누르면 해당 기능의 사용법을 볼 수 있어요."]] } },
 ];
-function getGuide(topic: string): Guide {
-  return GUIDES.find(item => item.match.test(topic))?.guide || { title: `${topic} 사용법`, steps: [["화면 안내", "원하는 항목을 선택하고 내용을 입력한 뒤 저장 또는 확인 버튼을 눌러요."], ["처음 사용한다면", "여행을 만들고 동행자를 추가한 뒤 일정과 지출을 기록하면 정산을 확인할 수 있어요."]] };
+export function getGuide(topic: string): Guide {
+  return GUIDES.find(item => item.match.test(topic))?.guide || { title: "도움말", steps: [["화면 안내", "원하는 항목을 선택하고 내용을 입력한 뒤 저장 또는 확인 버튼을 눌러요."], ["처음 사용한다면", "여행을 만들고 동행자를 추가한 뒤 일정과 지출을 기록하면 정산을 확인할 수 있어요."]] };
 }
 
 export default function AppHelp({ topic = "공동 여행방" }: { topic?: string }) {
   const guide = getGuide(topic);
+  const {language} = useAppLanguage();
+  const t = (value:string) => translateUI(value,language);
   const [visible, setVisible] = useState(false);
   const { colors } = useAppAppearance();
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel={`${guide.title} 도움말`} accessibilityHint="이 기능의 사용법을 보여줍니다" onPress={() => setVisible(true)} style={[styles.help, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${t(guide.title)} · ${t("도움말")}`} accessibilityHint={t("이 기능의 사용법을 보여줍니다")} onPress={() => setVisible(true)} style={[styles.help, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
       <Text style={[styles.question, { color: colors.text }]}>?</Text>
     </Pressable>
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
@@ -44,7 +47,7 @@ export default function AppHelp({ topic = "공동 여행방" }: { topic?: string
         <View accessibilityViewIsModal style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.header}>
             <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]} localize>{guide.title}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="도움말 닫기" onPress={() => setVisible(false)} style={styles.close}><Text style={[styles.closeText, { color: colors.text }]}>✕</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={t("도움말 닫기")} onPress={() => setVisible(false)} style={styles.close}><Text style={[styles.closeText, { color: colors.text }]}>✕</Text></Pressable>
           </View>
           <ScrollView>
             {guide.steps.map(([title, body]) => <View key={title} style={styles.step}>

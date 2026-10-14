@@ -1,5 +1,7 @@
+import {HELP_TRANSLATIONS} from "./help-translations";
 // App-owned UI labels only. Never apply to travel names, people or entered content.
 export const DICTIONARY:Record<string,readonly [string,string,string]>={
+...HELP_TRANSLATIONS,
 '알겠어요':['Got it','わかりました','知道了'], '출발':['Departure','出発','出发'], '귀국':['Return','帰国','返回'],
 '정산 결과 공유':['Share settlement','精算結果を共有','分享结算结果'], '수정 저장':['Save changes','変更を保存','保存更改'],
 '친구에게 실시간 초대 보내기':['Invite friends to this shared trip','友達を共有旅行に招待','邀请朋友加入共享旅行'],
