@@ -1,5 +1,6 @@
+import { SmoothText as Text } from "./smooth-text";
 import React, { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppAppearance } from "./appearance-context";
 
@@ -42,17 +43,17 @@ export default function AppHelp({ topic = "공동 여행방" }: { topic?: string
       <SafeAreaView style={styles.overlay}>
         <View accessibilityViewIsModal style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{guide.title}</Text>
+            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]} localize>{guide.title}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="도움말 닫기" onPress={() => setVisible(false)} style={styles.close}><Text style={[styles.closeText, { color: colors.text }]}>✕</Text></Pressable>
           </View>
           <ScrollView>
             {guide.steps.map(([title, body]) => <View key={title} style={styles.step}>
-              <Text style={[styles.stepTitle, { color: colors.text }]}>{title}</Text>
-              <Text style={[styles.body, { color: colors.muted }]}>{body}</Text>
+              <Text style={[styles.stepTitle, { color: colors.text }]} localize>{title}</Text>
+              <Text style={[styles.body, { color: colors.muted }]} localize>{body}</Text>
             </View>)}
-            {!!guide.note && <Text style={[styles.note, { color: colors.muted }]}>{guide.note}</Text>}
+            {!!guide.note && <Text style={[styles.note, { color: colors.muted }]} localize>{guide.note}</Text>}
           </ScrollView>
-          <Pressable accessibilityRole="button" onPress={() => setVisible(false)} style={[styles.done, { backgroundColor: colors.surface2 }]}><Text style={[styles.stepTitle, { color: colors.text }]}>알겠어요</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setVisible(false)} style={[styles.done, { backgroundColor: colors.surface2 }]}><Text localize style={[styles.stepTitle, { color: colors.text }]}>알겠어요</Text></Pressable>
         </View>
       </SafeAreaView>
     </Modal>
@@ -74,3 +75,4 @@ const styles = StyleSheet.create({
   note: { fontSize: 14, lineHeight: 22, marginBottom: 12 },
   done: { minHeight: 48, borderRadius: 14, padding: 12, alignItems: "center", justifyContent: "center", marginTop: 12 },
 });
+

@@ -1,10 +1,10 @@
+import { SmoothText as Text } from "./smooth-text";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import type { Person } from "../types";
@@ -270,12 +270,12 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
   return (
     <View>
       <View style={styles.card}>
-        <Text style={styles.title}>🎮 오늘은 누가 살까?</Text>
-        <Text style={styles.helper}>
+        <Text localize style={styles.title}>🎮 오늘은 누가 살까?</Text>
+        <Text localize style={styles.helper}>
           확률 조절 없이 참가자 모두 같은 확률로 뽑혀요.
         </Text>
 
-        <Text style={styles.sectionTitle}>게임 참가자</Text>
+        <Text localize style={styles.sectionTitle}>게임 참가자</Text>
         <View style={styles.chips}>
           {people.map((person) => {
             const selected = selectedIds.includes(person.id);
@@ -295,7 +295,7 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
         </View>
 
         {selectedPeople.length < 2 && (
-          <Text style={styles.warning}>게임은 2명 이상 선택해주세요.</Text>
+          <Text localize style={styles.warning}>게임은 2명 이상 선택해주세요.</Text>
         )}
       </View>
 
@@ -337,8 +337,8 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
 
       {mode === "roulette" && (
         <View style={styles.card}>
-          <Text style={styles.gameTitle}>🎡 완전 랜덤 룰렛</Text>
-          <Text style={styles.helper}>
+          <Text localize style={styles.gameTitle}>🎡 완전 랜덤 룰렛</Text>
+          <Text localize style={styles.helper}>
             돌림판이 실제로 회전한 뒤 포인터에 걸린 사람이 당첨돼요.
           </Text>
 
@@ -396,8 +396,8 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
 
       {mode === "race" && (
         <View style={styles.card}>
-          <Text style={styles.gameTitle}>🏁 랜덤 꼴찌 레이스</Text>
-          <Text style={styles.helper}>
+          <Text localize style={styles.gameTitle}>🏁 랜덤 꼴찌 레이스</Text>
+          <Text localize style={styles.helper}>
             초반에는 모두 접전으로 달리고, 마지막 순간에만 꼴찌가 드러나요.
           </Text>
 
@@ -457,8 +457,8 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
 
       {mode === "bomb" && (
         <View style={styles.card}>
-          <Text style={styles.gameTitle}>💣 랜덤 폭탄 돌리기</Text>
-          <Text style={styles.helper}>
+          <Text localize style={styles.gameTitle}>💣 랜덤 폭탄 돌리기</Text>
+          <Text localize style={styles.helper}>
             폭탄이 참가자 사이를 빠르게 이동하다가 완전 랜덤으로 한 사람에게 멈춰요.
           </Text>
 
@@ -513,8 +513,8 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
 
       {mode === "card" && (
         <View style={styles.card}>
-          <Text style={styles.gameTitle}>🎴 랜덤 카드 뽑기</Text>
-          <Text style={styles.helper}>
+          <Text localize style={styles.gameTitle}>🎴 랜덤 카드 뽑기</Text>
+          <Text localize style={styles.helper}>
             참가자 수만큼 카드를 만들고, 딱 한 장만 벌칙 카드예요. 벌칙 카드는 매번 완전 랜덤으로 정해져요.
           </Text>
 
@@ -528,13 +528,13 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
                 selectedPeople.length < 2 && styles.disabled,
               ]}
             >
-              <Text style={styles.startText}>카드 섞기</Text>
+              <Text localize style={styles.startText}>카드 섞기</Text>
             </Pressable>
           )}
 
           {cardLoserId && (
             <>
-              <Text style={styles.cardGuide}>
+              <Text localize style={styles.cardGuide}>
                 이름을 눌러 카드를 한 장씩 확인하세요.
               </Text>
 
@@ -597,7 +597,7 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
             onPress={() => onUsePayer(resultPerson.id, selectedIds)}
             style={[styles.expenseButton,{backgroundColor:accent}]}
           >
-            <Text style={styles.expenseButtonText}>
+            <Text localize style={styles.expenseButtonText}>
               이 결과로 지출 기록하기
             </Text>
           </Pressable>
@@ -613,7 +613,7 @@ export default function GameZone({ people, meId, accent="#5C5CE2", accentSoft="#
             }}
             style={styles.retryButton}
           >
-            <Text style={styles.retryText}>다시 하기</Text>
+            <Text localize style={styles.retryText}>다시 하기</Text>
           </Pressable>
         </View>
       )}

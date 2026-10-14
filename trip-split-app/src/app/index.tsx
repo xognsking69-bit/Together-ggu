@@ -16,6 +16,7 @@ import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
 import SharedInviteHelp from "../components/shared-invite-help";
 import AppHelp from "../components/app-help";
+import {LanguageProvider,useAppLanguage,LANGUAGES} from "../components/language-context";
 import SmoothPressable from "../components/smooth-pressable";
 import { SmoothText as Text, SmoothTextInput as TextInput } from "../components/smooth-text";
 import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../components/appearance-context";
@@ -38,7 +39,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.26";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.27";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -286,6 +287,7 @@ function migrate(saved:any): AppState {
 }
 
 function IndexContent() {
+  const {language,setLanguage}=useAppLanguage();
   const safeInsets = useSafeAreaInsets();
   const { payload: routePayload } = useLocalSearchParams<{ payload?: string | string[] }>();
   const invitePayload = Array.isArray(routePayload) ? routePayload[0] : routePayload;
@@ -1708,7 +1710,7 @@ if (!activeTrip) return null;
     }
   }
 
-  if (!ready) return <SafeAreaView style={[styles.safe,{backgroundColor:theme.bg}]}><View style={styles.center}><Text>불러오는 중...</Text></View></SafeAreaView>;
+  if (!ready) return <SafeAreaView style={[styles.safe,{backgroundColor:theme.bg}]}><View style={styles.center}><Text localize>불러오는 중...</Text></View></SafeAreaView>;
 
   return (
     <SafeAreaView edges={["top","left","right"]} style={[styles.safe,{backgroundColor:screenBackground}]}>
@@ -1721,7 +1723,7 @@ if (!activeTrip) return null;
             { translateY: screenMotion.interpolate({ inputRange:[0,1], outputRange:[8,0] }) },
           ],
         }}>
-        <View style={[styles.rowBetween,{marginBottom:8}]}><Text style={[styles.muted,{flex:1},isDark&&{color:appearanceColors.muted}]}>사용법이 궁금하면 ?를 눌러주세요</Text><AppHelp topic={{home:"홈",schedule:"일정",expense:"지출",companions:"동행자",manage:"더보기",settle:"정산",game:"미니게임"}[tab]}/></View>
+        <View style={[styles.rowBetween,{marginBottom:8}]}><Text localize style={[styles.muted,{flex:1},isDark&&{color:appearanceColors.muted}]}>사용법이 궁금하면 ?를 눌러주세요</Text><AppHelp topic={{home:"홈",schedule:"일정",expense:"지출",companions:"동행자",manage:"더보기",settle:"정산",game:"미니게임"}[tab]}/></View>
         {tab==="home" && <>
           <TripCalendar
             expenses={activeTrip.expenses}
@@ -1740,7 +1742,7 @@ if (!activeTrip) return null;
 
           {false && <>
           <Card cardStyle={cardDecorStyle} title="🧭 여행 설정">
-            <Text style={[styles.homeCompanionSubtitle,isDark&&{color:appearanceColors.muted}]}>여행을 선택하거나 새 여행을 만들고 기본 설정을 관리해요.</Text>
+            <Text localize style={[styles.homeCompanionSubtitle,isDark&&{color:appearanceColors.muted}]}>여행을 선택하거나 새 여행을 만들고 기본 설정을 관리해요.</Text>
             <View style={[styles.tripSelectorShell,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.tripRow}>
@@ -1754,7 +1756,7 @@ if (!activeTrip) return null;
                     </Pressable>
                   ))}
                   <Pressable onPress={addTrip} style={[styles.tripChip,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border,borderWidth:1}]}>
-                    <Text style={styles.bold}>＋ 새 여행</Text>
+                    <Text localize style={styles.bold}>＋ 새 여행</Text>
                   </Pressable>
                 </View>
               </ScrollView>
@@ -1771,11 +1773,11 @@ if (!activeTrip) return null;
           </>}
           {false && <>
           <Card cardStyle={cardDecorStyle} title="👥 동행인 관리">
-            <Text style={styles.homeCompanionSubtitle}>현재 여행과 함께하는 사람을 한눈에 관리해요.</Text>
+            <Text localize style={styles.homeCompanionSubtitle}>현재 여행과 함께하는 사람을 한눈에 관리해요.</Text>
             <View style={styles.homeTripSectionHeader}>
               <View style={styles.flex}>
                 <Text style={styles.homeTripSectionTitle}>동행인 <Text style={[styles.homePeopleInlineCount,{color:theme.accent}]}>{activeTrip.people.length}명</Text></Text>
-                <Text style={styles.homeTripActionHint}>현재 여행에 함께하는 사람을 바로 관리해요.</Text>
+                <Text localize style={styles.homeTripActionHint}>현재 여행에 함께하는 사람을 바로 관리해요.</Text>
               </View>
 
             </View>
@@ -1802,7 +1804,7 @@ if (!activeTrip) return null;
                     </Text>
                     <View style={styles.homePersonMetaRow}>
                       <Text style={styles.homePersonPhotoHint}>{profilePhotos[p.id] ? "사진 변경" : "프로필 사진 추가"}</Text>
-                      {p.id===state.profile.id && <View style={[styles.leaderBadge,{backgroundColor:uiAccentSoft}]}><Text style={[styles.leaderBadgeText,{color:theme.accent}]}>👑 여행 리더</Text></View>}
+                      {p.id===state.profile.id && <View style={[styles.leaderBadge,{backgroundColor:uiAccentSoft}]}><Text localize style={[styles.leaderBadgeText,{color:theme.accent}]}>👑 여행 리더</Text></View>}
                     </View>
                   </Pressable>
 
@@ -1812,7 +1814,7 @@ if (!activeTrip) return null;
                       hitSlop={8}
                       style={[styles.homePersonDeleteButton,isDark&&{backgroundColor:appearanceColors.dangerSurface,borderColor:appearanceColors.dangerBorder}]}
                     >
-                      <Text style={styles.homePersonDeleteText}>삭제</Text>
+                      <Text localize style={styles.homePersonDeleteText}>삭제</Text>
                     </Pressable>
                   )}
                 </View>
@@ -1832,7 +1834,7 @@ if (!activeTrip) return null;
                 onPress={addPerson}
                 style={[styles.homePersonAddButton,{backgroundColor:theme.accent}]}
               >
-                <Text style={styles.homePersonAddButtonText}>추가</Text>
+                <Text localize style={styles.homePersonAddButtonText}>추가</Text>
               </Pressable>
             </View>
 
@@ -1863,7 +1865,7 @@ if (!activeTrip) return null;
           <View style={[styles.heroCard,{backgroundColor:theme.accent}]}>
             <View style={styles.heroTop}>
               <View>
-                <Text style={styles.heroEyebrow}>이번 여행 지출</Text>
+                <Text localize style={styles.heroEyebrow}>이번 여행 지출</Text>
                 <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.62} style={[styles.hero,isTiny&&styles.heroTiny]}>{won(total)}</Text>
               </View>
               <View style={styles.heroBadge}>
@@ -1880,13 +1882,13 @@ if (!activeTrip) return null;
           <Card cardStyle={cardDecorStyle} title="📊 예산 · 소비 분석">
             <View style={[styles.budgetSummaryRow,isCompact&&styles.stackOnCompact]}>
               <View style={[styles.budgetSummaryBox,{backgroundColor:uiAccentSoft}]}>
-                <Text style={styles.analyticsLabel}>총 예산</Text>
+                <Text localize style={styles.analyticsLabel}>총 예산</Text>
                 <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={[styles.analyticsBig,{color:theme.accent}]}>
                   {activeTrip.budget ? won(activeTrip.budget) : "미설정"}
                 </Text>
               </View>
               <View style={[styles.budgetSummaryBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={styles.analyticsLabel}>남은 예산</Text>
+                <Text localize style={styles.analyticsLabel}>남은 예산</Text>
                 <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={[styles.analyticsBig,remainingBudget<0&&styles.danger]}>
                   {activeTrip.budget ? won(remainingBudget) : "-"}
                 </Text>
@@ -1905,14 +1907,14 @@ if (!activeTrip) return null;
                 style={[styles.input,styles.flex]}
               />
               <Pressable onPress={saveBudget} style={[styles.budgetSaveButton,{backgroundColor:theme.accent}]}>
-                <Text style={styles.budgetSaveText}>예산 저장</Text>
+                <Text localize style={styles.budgetSaveText}>예산 저장</Text>
               </Pressable>
             </View>
 
             {activeTrip.budget>0 && (
               <>
                 <View style={styles.analyticsProgressHeader}>
-                  <Text style={styles.muted}>예산 사용률</Text>
+                  <Text localize style={styles.muted}>예산 사용률</Text>
                   <Text style={[styles.analyticsPercent,{color:total>activeTrip.budget?"#D9534F":theme.accent}]}>{Math.round(total/activeTrip.budget*100)}%</Text>
                 </View>
                 <View style={[styles.analyticsTrack,{backgroundColor:uiAccentSoft}]}>
@@ -1923,26 +1925,26 @@ if (!activeTrip) return null;
 
             <View style={[styles.analyticsMiniGrid,isTiny&&styles.stackOnCompact]}>
               <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={styles.analyticsMiniLabel}>하루 평균</Text>
+                <Text localize style={styles.analyticsMiniLabel}>하루 평균</Text>
                 <Text style={styles.analyticsMiniValue}>{won(dailyAverage)}</Text>
               </View>
               <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={styles.analyticsMiniLabel}>1인 평균</Text>
+                <Text localize style={styles.analyticsMiniLabel}>1인 평균</Text>
                 <Text style={styles.analyticsMiniValue}>{won(perPersonAverage)}</Text>
               </View>
               <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={styles.analyticsMiniLabel}>예상 총지출</Text>
+                <Text localize style={styles.analyticsMiniLabel}>예상 총지출</Text>
                 <Text style={styles.analyticsMiniValue}>{tripTotalDays>0&&elapsedTripDays>0?won(projectedSpend):"날짜 설정 필요"}</Text>
               </View>
             </View>
 
             <View style={styles.analyticsDivider}/>
             <View style={styles.analyticsSectionHeader}>
-              <Text style={styles.analyticsSectionTitle}>카테고리별 소비</Text>
+              <Text localize style={styles.analyticsSectionTitle}>카테고리별 소비</Text>
               <Text style={styles.muted}>{activeTrip.expenses.length}건 기준</Text>
             </View>
             {categoryAnalytics.length===0 ? (
-              <Text style={styles.muted}>지출을 입력하면 식비·교통·쇼핑 비중을 자동으로 분석해요.</Text>
+              <Text localize style={styles.muted}>지출을 입력하면 식비·교통·쇼핑 비중을 자동으로 분석해요.</Text>
             ) : categoryAnalytics.map(item=>(
               <View key={item.category} style={styles.categoryAnalyticsRow}>
                 <View style={styles.categoryAnalyticsTop}>
@@ -1963,7 +1965,7 @@ if (!activeTrip) return null;
 
           <Card cardStyle={cardDecorStyle} title="최근 지출">
             {!activeTrip.expenses.length && (
-              <Text style={styles.muted}>아직 지출이 없어요. 첫 지출을 기록해보세요.</Text>
+              <Text localize style={styles.muted}>아직 지출이 없어요. 첫 지출을 기록해보세요.</Text>
             )}
             {recentExpenses.map(e=>{
               const payer=peopleNameMap[e.payerId] || "?";
@@ -1988,8 +1990,8 @@ if (!activeTrip) return null;
         {tab==="schedule" && <>
           <View style={styles.togetripSectionHead}>
             <View style={styles.flex}>
-              <Text style={[styles.togetripScreenTitle,isDark&&{color:appearanceColors.text}]}>여행 일정</Text>
-              <Text style={[styles.togetripScreenSub,isDark&&{color:appearanceColors.muted}]}>날짜별 일정과 장소를 한눈에 관리해요.</Text>
+              <Text localize style={[styles.togetripScreenTitle,isDark&&{color:appearanceColors.text}]}>여행 일정</Text>
+              <Text localize style={[styles.togetripScreenSub,isDark&&{color:appearanceColors.muted}]}>날짜별 일정과 장소를 한눈에 관리해요.</Text>
             </View>
             <Pressable onPress={()=>openPlanModal(activeTrip.start||today())} style={[styles.togetripAddCircle,{backgroundColor:theme.accent}]}>
               <Text style={styles.togetripAddCircleText}>＋</Text>
@@ -1997,7 +1999,7 @@ if (!activeTrip) return null;
           </View>
           <Card cardStyle={cardDecorStyle} title="📍 일정 · 지도">
             <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>{Platform.OS === "ios" ? "일정에 저장한 장소는 ‘지도에서 보기’로 Apple 지도에서 바로 열 수 있어요." : Platform.OS === "android" ? "일정에 저장한 장소는 ‘지도에서 보기’로 기본 지도 또는 Google 지도에서 바로 열 수 있어요." : "일정에 저장한 장소는 ‘지도에서 보기’로 바로 열 수 있어요."}</Text>
-            {activePlans.length===0 ? <Text style={[styles.emptyText,isDark&&{color:appearanceColors.muted}]}>아직 일정이 없어요. 달력의 날짜를 눌러 일정을 추가해보세요.</Text> :
+            {activePlans.length===0 ? <Text localize style={[styles.emptyText,isDark&&{color:appearanceColors.muted}]}>아직 일정이 없어요. 달력의 날짜를 눌러 일정을 추가해보세요.</Text> :
               activePlans.map(plan=>(
                 <View key={plan.id} style={[styles.togetripPlanRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}> 
                   <View style={[styles.togetripPlanIcon,{backgroundColor:uiAccentSoft}]}><Text>{plan.type==="flight"?"✈️":plan.type==="hotel"?"🏨":"📍"}</Text></View>
@@ -2006,7 +2008,7 @@ if (!activeTrip) return null;
                     <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>{plan.date}{plan.detail?` · ${String(plan.detail).replace(/\n/g," · ")}`:""}</Text>
                   </View>
                   <Pressable onPress={()=>openPlanEdit(plan)} style={[styles.planInlineEdit,isDark&&{backgroundColor:appearanceColors.input}]}>
-                    <Text style={[styles.planInlineEditText,isDark&&{color:theme.accent}]}>수정</Text>
+                    <Text localize style={[styles.planInlineEditText,isDark&&{color:theme.accent}]}>수정</Text>
                   </Pressable>
                 </View>
               ))
@@ -2020,13 +2022,13 @@ if (!activeTrip) return null;
               onPress={()=>setExpenseView("add")}
               style={[styles.segmentButton,expenseView==="add"&&{backgroundColor:theme.accent}]}
             >
-              <Text style={[styles.segmentText,expenseView==="add"&&styles.segmentTextActive]}>＋ 지출 추가</Text>
+              <Text localize style={[styles.segmentText,expenseView==="add"&&styles.segmentTextActive]}>＋ 지출 추가</Text>
             </Pressable>
             <Pressable
               onPress={()=>setExpenseView("list")}
               style={[styles.segmentButton,expenseView==="list"&&{backgroundColor:theme.accent}]}
             >
-              <Text style={[styles.segmentText,expenseView==="list"&&styles.segmentTextActive]}>🧾 지출 내역</Text>
+              <Text localize style={[styles.segmentText,expenseView==="list"&&styles.segmentTextActive]}>🧾 지출 내역</Text>
             </Pressable>
           </View>
           {expenseView==="add" && <>
@@ -2061,19 +2063,19 @@ if (!activeTrip) return null;
           <Card cardStyle={cardDecorStyle} title={editingId?"지출 수정":"지출 추가"}>
           <Text style={[styles.dateBanner,{color:theme.accent,backgroundColor:uiAccentSoft}]}>📅 {date}</Text>
           <Field label="내용" value={title} onChangeText={setTitle} placeholder="예: 라멘"/>
-          <Text style={styles.label}>카테고리</Text>
-          <View style={styles.chips}>{categories.map(x=><Chip key={x} text={x} selected={category===x} onPress={()=>setCategory(x)}/>)}</View>
-          <Text style={styles.label}>날짜</Text>
+          <Text localize style={styles.label}>카테고리</Text>
+          <View style={styles.chips}>{categories.map(x=><Chip localize key={x} text={x} selected={category===x} onPress={()=>setCategory(x)}/>)}</View>
+          <Text localize style={styles.label}>날짜</Text>
           <Pressable
             onPress={()=>setDatePickerMode("expense")}
             style={[styles.dateSelectButton,isDark&&{backgroundColor:appearanceColors.input,borderColor:appearanceColors.border},{borderColor:isDark?appearanceColors.border:uiAccentSoft}]}
           >
             <Text style={styles.dateSelectIcon}>📅</Text>
             <Text style={styles.dateSelectText}>{date}</Text>
-            <Text style={[styles.dateSelectChange,{color:theme.accent}]}>변경</Text>
+            <Text localize style={[styles.dateSelectChange,{color:theme.accent}]}>변경</Text>
           </Pressable>
           <Field label="금액" value={amount} onChangeText={setAmount} keyboardType="decimal-pad"/>
-          <Text style={styles.label}>통화</Text>
+          <Text localize style={styles.label}>통화</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`통화 선택, ${currency} ${CURRENCY_NAMES[currency]}`}
@@ -2107,19 +2109,19 @@ if (!activeTrip) return null;
             </ScrollView>
           </View>}
           {currency !== "KRW" && <>
-            <Text style={styles.label}>환율 방식</Text>
+            <Text localize style={styles.label}>환율 방식</Text>
             <View style={styles.rateModeRow}>
               <Pressable
                 onPress={()=>setRateMode("auto")}
                 style={[styles.rateModeButton,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}, rateMode==="auto" && {backgroundColor:uiAccentSoft,borderColor:theme.accent}]}
               >
-                <Text style={[styles.rateModeText, rateMode==="auto" && {color:theme.accent}]}>✨ 자동 환율</Text>
+                <Text localize style={[styles.rateModeText, rateMode==="auto" && {color:theme.accent}]}>✨ 자동 환율</Text>
               </Pressable>
               <Pressable
                 onPress={()=>setRateMode("manual")}
                 style={[styles.rateModeButton,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}, rateMode==="manual" && {backgroundColor:uiAccentSoft,borderColor:theme.accent}]}
               >
-                <Text style={[styles.rateModeText, rateMode==="manual" && {color:theme.accent}]}>✍️ 직접 입력</Text>
+                <Text localize style={[styles.rateModeText, rateMode==="manual" && {color:theme.accent}]}>✍️ 직접 입력</Text>
               </Pressable>
             </View>
           </>}
@@ -2135,21 +2137,21 @@ if (!activeTrip) return null;
               <Text style={styles.rateStatusMeta}>{rateDate ? `${rateDate} 기준 · ` : ""}참고 환율이며 실제 카드/환전 금액과 다를 수 있어요.</Text>
             </View>
             <Pressable disabled={rateLoading} onPress={()=>void refreshAutoRate(currency)} style={[styles.rateRefresh,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border},{borderColor:theme.accent}]}>
-              <Text style={[styles.rateRefreshText,{color:theme.accent}]}>↻ 새로고침</Text>
+              <Text localize style={[styles.rateRefreshText,{color:theme.accent}]}>↻ 새로고침</Text>
             </Pressable>
           </View>}
           {!!rateError && <Text style={styles.rateError}>{rateError}</Text>}
-          <Text style={styles.label}>누가 결제했나요?</Text>
+          <Text localize style={styles.label}>누가 결제했나요?</Text>
           <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={payerId===p.id} onPress={()=>setPayerId(p.id)}/>)}</View>
-          <Text style={styles.label}>누가 같이 사용했나요?</Text>
+          <Text localize style={styles.label}>누가 같이 사용했나요?</Text>
           <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={participants.includes(p.id)} onPress={()=>setParticipants(ids=>ids.includes(p.id)?ids.filter(id=>id!==p.id):[...ids,p.id])}/>)}</View>
           <Primary text={editingId?"수정 저장":"지출 저장"} onPress={saveExpense} full/>
-          {editingId && <Pressable onPress={()=>{resetForm();setExpenseView("list");setTab("expense");}}><Text style={[styles.link,{textAlign:"center",marginTop:12,color:theme.accent}]}>수정 취소</Text></Pressable>}
+          {editingId && <Pressable onPress={()=>{resetForm();setExpenseView("list");setTab("expense");}}><Text localize style={[styles.link,{textAlign:"center",marginTop:12,color:theme.accent}]}>수정 취소</Text></Pressable>}
         </Card>
           </>}
           {expenseView==="list" && <>
 <Card cardStyle={cardDecorStyle} title={`지출 내역 · ${activeTrip.expenses.length}건`}>
-          {!activeTrip.expenses.length && <Text style={styles.muted}>아직 지출이 없습니다.</Text>}
+          {!activeTrip.expenses.length && <Text localize style={styles.muted}>아직 지출이 없습니다.</Text>}
           {[...activeTrip.expenses].reverse().map(e=>{
             const payer=activeTrip.people.find(p=>p.id===e.payerId)?.name || "?";
             return <View key={e.id} style={styles.expense}>
@@ -2158,7 +2160,7 @@ if (!activeTrip) return null;
                 {e.currency !== "KRW" ? ` · ${e.amount.toLocaleString()} ${e.currency}` : ""}
                 {(e as Expense & {receiptUri?:string}).receiptUri ? " · 🧾 영수증" : ""}
               </Text></View><Text style={styles.bold}>{won(e.krwAmount)}</Text></View>
-              <View style={styles.row}><Pressable onPress={()=>editExpense(e)}><Text style={styles.link}>수정</Text></Pressable><Pressable onPress={()=>deleteExpense(e.id)}><Text style={styles.danger}>삭제</Text></Pressable></View>
+              <View style={styles.row}><Pressable onPress={()=>editExpense(e)}><Text localize style={styles.link}>수정</Text></Pressable><Pressable onPress={()=>deleteExpense(e.id)}><Text localize style={styles.danger}>삭제</Text></Pressable></View>
             </View>
           })}
         </Card>          </>}
@@ -2167,11 +2169,11 @@ if (!activeTrip) return null;
         {tab==="companions" && <>
           <View style={styles.companionIntro}>
             <View style={styles.flex}>
-              <Text style={[styles.companionTitle,isDark&&{color:appearanceColors.text}]}>동행자</Text>
-              <Text style={[styles.companionSubtitle,isDark&&{color:appearanceColors.muted}]}>멤버와 공동 여행방을 한곳에서 관리해요.</Text>
+              <Text localize style={[styles.companionTitle,isDark&&{color:appearanceColors.text}]}>동행자</Text>
+              <Text localize style={[styles.companionSubtitle,isDark&&{color:appearanceColors.muted}]}>멤버와 공동 여행방을 한곳에서 관리해요.</Text>
             </View>
             <Pressable onPress={addTrip} style={[styles.companionAddTrip,{backgroundColor:uiAccentSoft}]}>
-              <Text style={[styles.companionAddTripText,{color:theme.accent}]}>＋ 새 여행</Text>
+              <Text localize style={[styles.companionAddTripText,{color:theme.accent}]}>＋ 새 여행</Text>
             </Pressable>
           </View>
 
@@ -2181,20 +2183,20 @@ if (!activeTrip) return null;
             </ScrollView>
             <View style={[styles.companionTripSummary,{backgroundColor:uiAccentSoft}]}>
               <View style={styles.flex}><Text style={styles.companionTripName}>{activeTrip.name||"우리 여행"}</Text><Text style={styles.companionTripMeta}>{[activeTrip.start,activeTrip.end].filter(Boolean).join(" ~ ")||"날짜 미설정"} · {activeTrip.people.length}명</Text></View>
-              <Pressable onPress={()=>setDatePickerMode("start")} style={styles.companionSettingsButton}><Text style={[styles.companionSettingsText,{color:theme.accent}]}>날짜 설정</Text></Pressable>
+              <Pressable onPress={()=>setDatePickerMode("start")} style={styles.companionSettingsButton}><Text localize style={[styles.companionSettingsText,{color:theme.accent}]}>날짜 설정</Text></Pressable>
             </View>
           </Card>
 
           <Card cardStyle={cardDecorStyle} title="여행공동방" help={<SharedInviteHelp/>}>
-            <Text style={[styles.companionSubtitle,isDark&&{color:appearanceColors.muted}]}>초대 코드로 연결하면 일정·지출·정산을 함께 관리할 수 있어요.</Text>
+            <Text localize style={[styles.companionSubtitle,isDark&&{color:appearanceColors.muted}]}>초대 코드로 연결하면 일정·지출·정산을 함께 관리할 수 있어요.</Text>
             <View style={[styles.sharedRoomBanner,{backgroundColor:uiAccentSoft,borderColor:isDark?appearanceColors.border:theme.accentSoft}]}>
               <Text style={[styles.sharedRoomTitle,{color:theme.accent}]}>{activeSharedRoom?"● 공동방 연결됨":"○ 아직 연결되지 않음"}</Text>
               <Text style={[styles.sharedRoomMeta,isDark&&{color:appearanceColors.muted}]}>{activeSharedRoom?`방 코드 ${activeSharedRoom.code} · ${sharedStatusText||"자동 동기화 중"}`:"공동방을 만들거나 받은 초대코드를 입력하세요."}</Text>
             </View>
             <View style={styles.companionRoomActions}>
               {!activeSharedRoom&&<Pressable disabled={sharedStatus==="creating"} onPress={createLiveSharedRoom} style={[styles.companionRoomPrimary,{backgroundColor:theme.accent}]}><Text style={styles.primaryText}>{sharedStatus==="creating"?"만드는 중…":"공동방 만들기"}</Text></Pressable>}
-              {activeSharedRoom&&<Pressable onPress={()=>shareLiveInvite(activeSharedRoom)} style={[styles.companionRoomPrimary,{backgroundColor:theme.accent}]}><Text style={styles.primaryText}>초대 보내기</Text></Pressable>}
-              <Pressable onPress={()=>{setOpenManageSection("shared");setTab("manage");}} style={[styles.companionRoomSecondary,{borderColor:theme.accent}]}><Text style={[styles.companionRoomSecondaryText,{color:theme.accent}]}>초대코드 입력</Text></Pressable>
+              {activeSharedRoom&&<Pressable onPress={()=>shareLiveInvite(activeSharedRoom)} style={[styles.companionRoomPrimary,{backgroundColor:theme.accent}]}><Text localize style={styles.primaryText}>초대 보내기</Text></Pressable>}
+              <Pressable onPress={()=>{setOpenManageSection("shared");setTab("manage");}} style={[styles.companionRoomSecondary,{borderColor:theme.accent}]}><Text localize style={[styles.companionRoomSecondaryText,{color:theme.accent}]}>초대코드 입력</Text></Pressable>
             </View>
           </Card>
 
@@ -2203,10 +2205,10 @@ if (!activeTrip) return null;
               {activeTrip.people.map(p=><View key={p.id} style={[styles.homePersonRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
                 <Pressable onPress={()=>pickProfilePhoto(p.id)} style={[styles.avatarButton,{backgroundColor:uiAccentSoft}]}>{profilePhotos[p.id]?<Image source={{uri:profilePhotos[p.id]}} style={styles.avatarImage}/>:<Text style={[styles.avatarInitial,{color:theme.accent}]}>{(p.name||"나").trim().slice(0,1)}</Text>}</Pressable>
                 <View style={styles.flex}><Text style={styles.homePersonName}>{p.id===state.profile.id?`${p.name} · 나`:p.name}</Text><Text style={styles.homePersonPhotoHint}>{p.id===state.profile.id?"여행 관리자":"동행자"}</Text></View>
-                {p.id!==state.profile.id&&<Pressable onPress={()=>removePerson(p.id)} style={[styles.homePersonDeleteButton,isDark&&{backgroundColor:appearanceColors.dangerSurface,borderColor:appearanceColors.dangerBorder}]}><Text style={styles.homePersonDeleteText}>삭제</Text></Pressable>}
+                {p.id!==state.profile.id&&<Pressable onPress={()=>removePerson(p.id)} style={[styles.homePersonDeleteButton,isDark&&{backgroundColor:appearanceColors.dangerSurface,borderColor:appearanceColors.dangerBorder}]}><Text localize style={styles.homePersonDeleteText}>삭제</Text></Pressable>}
               </View>)}
             </View>
-            <View style={[styles.homePersonAddRow,isCompact&&styles.stackOnCompact]}><TextInput style={[styles.input,styles.flex]} value={personName} onChangeText={setPersonName} onSubmitEditing={addPerson} returnKeyType="done" placeholder="동행자 이름"/><Pressable onPress={addPerson} style={[styles.homePersonAddButton,{backgroundColor:theme.accent}]}><Text style={styles.homePersonAddButtonText}>추가</Text></Pressable></View>
+            <View style={[styles.homePersonAddRow,isCompact&&styles.stackOnCompact]}><TextInput style={[styles.input,styles.flex]} value={personName} onChangeText={setPersonName} onSubmitEditing={addPerson} returnKeyType="done" placeholder="동행자 이름"/><Pressable onPress={addPerson} style={[styles.homePersonAddButton,{backgroundColor:theme.accent}]}><Text localize style={styles.homePersonAddButtonText}>추가</Text></Pressable></View>
           </Card>
         </>}
 
@@ -2227,13 +2229,22 @@ if (!activeTrip) return null;
 
         {tab==="manage" && <>
           <View style={styles.manageIntro}>
-            <View style={styles.rowBetween}><Text style={[styles.manageTitle,isDark&&{color:appearanceColors.text}]}>여행 관리</Text><Text style={[styles.manageVersion,{color:theme.accent}]}>V{APP_VERSION}</Text></View>
-            <Text style={[styles.manageSubtitle,isDark&&{color:appearanceColors.muted}]}>준비물, 공동 여행방, 백업과 내 정보를 관리해요.</Text>
+            <View style={styles.rowBetween}><Text localize style={[styles.manageTitle,isDark&&{color:appearanceColors.text}]}>여행 관리</Text><Text style={[styles.manageVersion,{color:theme.accent}]}>V{APP_VERSION}</Text></View>
+            <Text localize style={[styles.manageSubtitle,isDark&&{color:appearanceColors.muted}]}>준비물, 공동 여행방, 백업과 내 정보를 관리해요.</Text>
           </View>
           <View style={styles.togetripMoreQuick}>
-            <Pressable onPress={()=>setTab("settle")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text style={[styles.bold,{color:theme.accent}]}>💸 정산</Text></Pressable>
-            <Pressable onPress={()=>setTab("game")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text style={[styles.bold,{color:theme.accent}]}>🎮 미니게임</Text></Pressable>
+            <Pressable onPress={()=>setTab("settle")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text localize style={[styles.bold,{color:theme.accent}]}>💸 정산</Text></Pressable>
+            <Pressable onPress={()=>setTab("game")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text localize style={[styles.bold,{color:theme.accent}]}>🎮 미니게임</Text></Pressable>
           </View>
+          <Card title="🌐 언어" cardStyle={cardDecorStyle}>
+            <Text localize style={styles.muted}>앱에서 사용할 언어를 선택해요.</Text>
+            <View style={{gap:8,marginTop:12}}>
+              {LANGUAGES.map(([id,name])=><RNPressable key={id} accessibilityRole="radio" accessibilityState={{checked:language===id}} accessibilityLabel={name} onPress={()=>setLanguage(id)} style={{minHeight:48,paddingHorizontal:16,paddingVertical:12,borderRadius:14,borderWidth:1,borderColor:language===id?theme.accent:appearanceColors.border,backgroundColor:language===id?uiAccentSoft:appearanceColors.surface2,flexDirection:"row",justifyContent:"space-between"}}>
+                <Text style={{color:appearanceColors.text,fontWeight:"700"}}>{name}</Text><Text style={{color:theme.accent}}>{language===id?"✓":""}</Text>
+              </RNPressable>)}
+            </View>
+            <Text localize style={[styles.muted,{marginTop:12}]}>번역되지 않은 안내는 한국어로 표시돼요. 여행 이름과 입력한 내용은 바뀌지 않아요.</Text>
+          </Card>
           <ManageGroup
             title="✅ 준비 체크리스트"
             subtitle="준비물 체크와 진행률"
@@ -2247,7 +2258,7 @@ if (!activeTrip) return null;
               </Text>
               {activeTrip.checklist.some(item=>item.done) && (
                 <Pressable onPress={resetChecklistDone}>
-                  <Text style={[styles.checkReset,{color:theme.accent}]}>전체 체크 해제</Text>
+                  <Text localize style={[styles.checkReset,{color:theme.accent}]}>전체 체크 해제</Text>
                 </Pressable>
               )}
             </View>
@@ -2266,7 +2277,7 @@ if (!activeTrip) return null;
 
             <View style={styles.checkList}>
               {activeTrip.checklist.length===0 && (
-                <Text style={styles.emptyText}>아직 준비물이 없어요. 아래에서 추가해보세요.</Text>
+                <Text localize style={styles.emptyText}>아직 준비물이 없어요. 아래에서 추가해보세요.</Text>
               )}
               {activeTrip.checklist.map(item=>(
                 <View key={item.id} style={[styles.checkItemRow,isDark&&{backgroundColor:appearanceColors.surface2}]}>
@@ -2280,7 +2291,7 @@ if (!activeTrip) return null;
                     <Text style={[styles.checkItemText,item.done&&styles.checkItemDone]}>{item.text}</Text>
                   </Pressable>
                   <Pressable onPress={()=>deleteChecklistItem(item.id)} style={styles.checkDelete}>
-                    <Text style={styles.checkDeleteText}>삭제</Text>
+                    <Text localize style={styles.checkDeleteText}>삭제</Text>
                   </Pressable>
                 </View>
               ))}
@@ -2297,7 +2308,7 @@ if (!activeTrip) return null;
                 style={[styles.checkInput,isDark&&{backgroundColor:appearanceColors.input,borderColor:appearanceColors.border}]}
               />
               <Pressable onPress={addChecklistItem} style={[styles.checkAddButton,{backgroundColor:theme.accent}]}>
-                <Text style={styles.checkAddButtonText}>추가</Text>
+                <Text localize style={styles.checkAddButtonText}>추가</Text>
               </Pressable>
             </View>
           </ManageGroup>
@@ -2309,7 +2320,7 @@ if (!activeTrip) return null;
             onPress={()=>setOpenManageSection(openManageSection==="shared"?null:"shared")}
             cardStyle={cardDecorStyle}
           >
-            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>동행인·지출·일정이 약 5초 간격으로 자동 동기화돼요. 동시에 같은 내용을 바꾸면 마지막으로 저장된 내용이 우선돼요.</Text>
+            <Text localize style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>동행인·지출·일정이 약 5초 간격으로 자동 동기화돼요. 동시에 같은 내용을 바꾸면 마지막으로 저장된 내용이 우선돼요.</Text>
             <View style={[styles.sharedRoomBanner,{backgroundColor:uiAccentSoft,borderColor:isDark?hexToRgba(theme.accent,0.34):theme.accentSoft}]}> 
               <Text style={[styles.sharedRoomTitle,{color:theme.accent}]}>✈️ {activeTrip.name}</Text>
               <Text style={[styles.sharedRoomMeta,isDark&&{color:appearanceColors.muted}]}>동행 {activeTrip.people.length}명 · 지출 {activeTrip.expenses.length}건 · 일정 {activePlans.length}개</Text>
@@ -2322,7 +2333,7 @@ if (!activeTrip) return null;
                   {!!sharedStatusText && <Text style={[styles.sharedStatusText,isDark&&{color:appearanceColors.muted}]}>{sharedStatusText}</Text>}
                 </>
               ) : (
-                <Text style={[styles.sharedStatusText,isDark&&{color:appearanceColors.muted}]}>아직 이 여행은 실시간 공동방에 연결되지 않았어요.</Text>
+                <Text localize style={[styles.sharedStatusText,isDark&&{color:appearanceColors.muted}]}>아직 이 여행은 실시간 공동방에 연결되지 않았어요.</Text>
               )}
             </View>
 
@@ -2331,10 +2342,10 @@ if (!activeTrip) return null;
                 <Primary text="친구에게 실시간 초대 보내기" onPress={()=>shareLiveInvite(activeSharedRoom)} full/>
                 <View style={[styles.sharedActionRow,isCompact&&styles.stackOnCompact]}>
                   <Pressable onPress={()=>activeSharedRoom.pendingSync?pushSharedRoom(activeTrip.id,activeTrip,activePlans,activeSharedFingerprint):pullSharedRoom(activeTrip.id)} style={[styles.sharedSecondaryButton,{borderColor:theme.accent}]}>
-                    <Text style={[styles.sharedSecondaryText,{color:theme.accent}]}>↻ 지금 동기화</Text>
+                    <Text localize style={[styles.sharedSecondaryText,{color:theme.accent}]}>↻ 지금 동기화</Text>
                   </Pressable>
                   <Pressable onPress={disconnectSharedRoom} style={[styles.sharedSecondaryButton,{borderColor:isDark?appearanceColors.border:"#E5E6EC"}]}>
-                    <Text style={[styles.sharedSecondaryText,{color:isDark?appearanceColors.muted:"#777B8F"}]}>연결 해제</Text>
+                    <Text localize style={[styles.sharedSecondaryText,{color:isDark?appearanceColors.muted:"#777B8F"}]}>연결 해제</Text>
                   </Pressable>
                 </View>
               </>
@@ -2343,7 +2354,7 @@ if (!activeTrip) return null;
             )}
 
             <View style={styles.sharedDivider}/>
-            <View style={styles.rowBetween}><Text style={[styles.label,isDark&&{color:appearanceColors.text}]}>받은 초대코드</Text><SharedInviteHelp/></View>
+            <View style={styles.rowBetween}><Text localize style={[styles.label,isDark&&{color:appearanceColors.text}]}>받은 초대코드</Text><SharedInviteHelp/></View>
             <TextInput
               value={sharedInviteText}
               onChangeText={setSharedInviteText}
@@ -2353,10 +2364,10 @@ if (!activeTrip) return null;
               style={[styles.input,styles.sharedInviteInput,isDark&&{backgroundColor:appearanceColors.input,borderColor:appearanceColors.border,color:appearanceColors.text}]}
             />
             <Pressable onPress={joinSharedInvite} style={[styles.sharedJoinButton,{backgroundColor:theme.accent}]}>
-              <Text style={styles.primaryText}>초대받은 공동 여행 연결</Text>
+              <Text localize style={styles.primaryText}>초대받은 공동 여행 연결</Text>
             </Pressable>
             <Pressable onPress={shareTripInvite} style={styles.sharedCopyButton}>
-              <Text style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
+              <Text localize style={[styles.sharedCopyText,{color:theme.accent}]}>서버 없이 여행 사본만 보내기</Text>
             </Pressable>
             <Text style={[styles.sharedBetaNote,isDark&&{color:appearanceColors.muted}]}>V{APP_VERSION} · 기기별 사용자 구분 + 오프라인 변경 보관 · 각 기기의 ‘나’를 서로 다른 사람으로 정산해요.</Text>
           </ManageGroup>
@@ -2368,9 +2379,9 @@ if (!activeTrip) return null;
             onPress={()=>setOpenManageSection(openManageSection==="decorate"?null:"decorate")}
             cardStyle={cardDecorStyle}
           >
-            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>색상뿐 아니라 밝기, 배경과 카드 모양까지 취향대로 바꿀 수 있어요. 선택한 꾸미기는 앱을 다시 열어도 유지돼요.</Text>
+            <Text localize style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>색상뿐 아니라 밝기, 배경과 카드 모양까지 취향대로 바꿀 수 있어요. 선택한 꾸미기는 앱을 다시 열어도 유지돼요.</Text>
 
-            <Text style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>화면 밝기</Text>
+            <Text localize style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>화면 밝기</Text>
             <View style={[styles.decorChoiceRow,isCompact&&styles.decorChoiceRowCompact]}>
               {([
                 ["system","📱","시스템"],
@@ -2379,13 +2390,13 @@ if (!activeTrip) return null;
               ] as [AppearanceMode,string,string][]).map(([id,emoji,label])=>(
                 <Pressable key={id} onPress={()=>setAppearanceMode(id)} style={[styles.decorChoice,isCompact&&styles.decorChoiceCompact,{backgroundColor:isDark?appearanceColors.surface2:"#FFFFFF"},appearanceMode===id&&{borderColor:theme.accent,borderWidth:2}]}>
                   <Text style={styles.decorChoiceEmoji}>{emoji}</Text>
-                  <Text style={[styles.decorChoiceText,isDark&&{color:appearanceColors.text},appearanceMode===id&&{color:theme.accent}]}>{label}</Text>
+                  <Text style={[styles.decorChoiceText,isDark&&{color:appearanceColors.text},appearanceMode===id&&{color:theme.accent}]} localize>{label}</Text>
                 </Pressable>
               ))}
             </View>
-            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>시스템은 휴대폰의 라이트/다크 설정을 자동으로 따라가요.</Text>
+            <Text localize style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>시스템은 휴대폰의 라이트/다크 설정을 자동으로 따라가요.</Text>
 
-            <Text style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>테마 색상</Text>
+            <Text localize style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>테마 색상</Text>
             <View style={styles.themeGrid}>
               {(Object.values(THEMES) as typeof theme[]).map(t=>(
                 <Pressable
@@ -2401,12 +2412,12 @@ if (!activeTrip) return null;
                   <View style={[styles.themeDot,{backgroundColor:t.accent}]} />
                   <Text style={styles.themeEmoji}>{t.emoji}</Text>
                   <Text style={[styles.themeName,isDark&&{color:"#20223F"},themeId===t.id&&{color:t.accent}]}>{t.name}</Text>
-                  {themeId===t.id && <Text style={[styles.themeSelected,{color:t.accent}]}>선택됨</Text>}
+                  {themeId===t.id && <Text localize style={[styles.themeSelected,{color:t.accent}]}>선택됨</Text>}
                 </Pressable>
               ))}
             </View>
 
-            <Text style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>배경 스타일</Text>
+            <Text localize style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>배경 스타일</Text>
             <View style={[styles.decorChoiceRow,isCompact&&styles.decorChoiceRowCompact]}>
               {(Object.entries(BACKGROUNDS) as [BackgroundStyleId, typeof BACKGROUNDS[BackgroundStyleId]][]).map(([id,item])=>(
                 <Pressable
@@ -2425,7 +2436,7 @@ if (!activeTrip) return null;
               ))}
             </View>
 
-            <Text style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>카드 모양</Text>
+            <Text localize style={[styles.decorSectionTitle,isDark&&{color:appearanceColors.text}]}>카드 모양</Text>
             <View style={[styles.decorChoiceRow,isCompact&&styles.decorChoiceRowCompact]}>
               {(Object.entries(CARD_STYLES) as [CardStyleId, typeof CARD_STYLES[CardStyleId]][]).map(([id,item])=>(
                 <Pressable
@@ -2453,7 +2464,7 @@ if (!activeTrip) return null;
             onPress={()=>setOpenManageSection(openManageSection==="backup"?null:"backup")}
             cardStyle={cardDecorStyle}
           >
-            <Text style={styles.muted}>
+            <Text localize style={styles.muted}>
               여행 기록과 지출 내역을 백업해두면 휴대폰을 바꾸거나 앱을 다시 설치한 뒤에도 복원할 수 있어요.
             </Text>
 
@@ -2461,7 +2472,7 @@ if (!activeTrip) return null;
               onPress={shareBackup}
               style={[styles.primaryButton,{backgroundColor:theme.accent,marginTop:13}]}
             >
-              <Text style={styles.primaryButtonText}>📤 전체 데이터 백업하기</Text>
+              <Text localize style={styles.primaryButtonText}>📤 전체 데이터 백업하기</Text>
             </Pressable>
 
             <Pressable
@@ -2475,7 +2486,7 @@ if (!activeTrip) return null;
 
             {showRestore && (
               <View style={[styles.restoreBox,{backgroundColor:uiAccentSoft}]}>
-                <Text style={styles.restoreGuide}>
+                <Text localize style={styles.restoreGuide}>
                   백업할 때 저장하거나 공유한 긴 JSON 내용을 아래에 그대로 붙여넣어 주세요.
                 </Text>
                 <TextInput
@@ -2492,12 +2503,12 @@ if (!activeTrip) return null;
                   onPress={restoreBackup}
                   style={[styles.restoreButton,{backgroundColor:theme.accent}]}
                 >
-                  <Text style={styles.primaryButtonText}>백업 내용으로 복원</Text>
+                  <Text localize style={styles.primaryButtonText}>백업 내용으로 복원</Text>
                 </Pressable>
               </View>
             )}
 
-            <Text style={styles.backupNote}>
+            <Text localize style={styles.backupNote}>
               ※ 프로필 사진은 백업에 포함돼요. 영수증 사진 파일 자체는 아직 백업 대상이 아니며, 연결 정보만 보존돼요.
             </Text>
           </ManageGroup>
@@ -2524,8 +2535,8 @@ if (!activeTrip) return null;
               </Pressable>
 
               <View style={styles.flex}>
-                <Text style={styles.profilePhotoTitle}>프로필 사진</Text>
-                <Text style={styles.profilePhotoHint}>사진을 누르면 앨범에서 변경할 수 있어요.</Text>
+                <Text localize style={styles.profilePhotoTitle}>프로필 사진</Text>
+                <Text localize style={styles.profilePhotoHint}>사진을 누르면 앨범에서 변경할 수 있어요.</Text>
                 <View style={styles.profilePhotoActions}>
                   <Pressable
                     onPress={()=>pickProfilePhoto(state.profile.id)}
@@ -2540,7 +2551,7 @@ if (!activeTrip) return null;
                       onPress={()=>removeProfilePhoto(state.profile.id)}
                       style={styles.profilePhotoRemove}
                     >
-                      <Text style={styles.profilePhotoRemoveText}>사진 삭제</Text>
+                      <Text localize style={styles.profilePhotoRemoveText}>사진 삭제</Text>
                     </Pressable>
                   )}
                 </View>
@@ -2555,25 +2566,25 @@ if (!activeTrip) return null;
           <Card cardStyle={cardDecorStyle} title="🧾 여행 종료 요약">
             <View style={styles.budgetSummaryRow}>
               <View style={[styles.budgetSummaryBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={[styles.analyticsLabel,isDark&&{color:appearanceColors.muted}]}>총 지출</Text>
+                <Text localize style={[styles.analyticsLabel,isDark&&{color:appearanceColors.muted}]}>총 지출</Text>
                 <Text style={[styles.analyticsBig,isDark&&{color:appearanceColors.text}]}>{won(total)}</Text>
               </View>
               <View style={[styles.budgetSummaryBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={[styles.analyticsLabel,isDark&&{color:appearanceColors.muted}]}>1인 평균</Text>
+                <Text localize style={[styles.analyticsLabel,isDark&&{color:appearanceColors.muted}]}>1인 평균</Text>
                 <Text style={[styles.analyticsBig,isDark&&{color:appearanceColors.text}]}>{won(perPersonAverage)}</Text>
               </View>
             </View>
             <View style={styles.analyticsMiniGrid}>
               <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>여행 기간</Text>
+                <Text localize style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>여행 기간</Text>
                 <Text style={[styles.analyticsMiniValue,isDark&&{color:appearanceColors.text}]}>{tripTotalDays ? `${tripTotalDays}일` : "미설정"}</Text>
               </View>
               <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>지출 건수</Text>
+                <Text localize style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>지출 건수</Text>
                 <Text style={[styles.analyticsMiniValue,isDark&&{color:appearanceColors.text}]}>{activeTrip.expenses.length}건</Text>
               </View>
               <View style={[styles.analyticsMiniBox,isDark&&{backgroundColor:appearanceColors.surface2}]}>
-                <Text style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>가장 큰 항목</Text>
+                <Text localize style={[styles.analyticsMiniLabel,isDark&&{color:appearanceColors.muted}]}>가장 큰 항목</Text>
                 <Text style={[styles.analyticsMiniValue,isDark&&{color:appearanceColors.text}]}>{tripSummaryTopCategory}</Text>
               </View>
             </View>
@@ -2597,7 +2608,7 @@ if (!activeTrip) return null;
             <View style={[styles.analyticsTrack,{backgroundColor:isDark?appearanceColors.surface2:"#EEF0F6"}]}>
               <View style={[styles.analyticsFill,{width:`${settlementProgress}%`,backgroundColor:theme.accent}]}/>
             </View>
-            {!transfers.length && <Text style={styles.muted}>모든 금액이 이미 맞아요.</Text>}
+            {!transfers.length && <Text localize style={styles.muted}>모든 금액이 이미 맞아요.</Text>}
             {transfers.map((t,i)=>{
               const f=activeTrip.people.find(p=>p.id===t.from)?.name||"?";
               const to=activeTrip.people.find(p=>p.id===t.to)?.name||"?";
@@ -2610,9 +2621,9 @@ if (!activeTrip) return null;
                 <Text style={[styles.bold,done&&{textDecorationLine:"line-through"}]}>{won(t.amount)}</Text>
               </Pressable>
             })}
-            {transfers.length>0 && settlementRemainingCount===0 && <Text style={[styles.good,{marginTop:8,fontWeight:"900"}]}>🎉 이 여행의 정산이 모두 끝났어요.</Text>}
+            {transfers.length>0 && settlementRemainingCount===0 && <Text localize style={[styles.good,{marginTop:8,fontWeight:"900"}]}>🎉 이 여행의 정산이 모두 끝났어요.</Text>}
             <Primary text="정산 결과 공유" onPress={shareSettlement} full/>
-            {settlementDoneCount>0 && <Pressable onPress={resetSettlementDone} style={{alignSelf:"center",padding:10}}><Text style={styles.muted}>완료 체크 초기화</Text></Pressable>}
+            {settlementDoneCount>0 && <Pressable onPress={resetSettlementDone} style={{alignSelf:"center",padding:10}}><Text localize style={styles.muted}>완료 체크 초기화</Text></Pressable>}
           </Card>
         </>}
         </Animated.View>
@@ -2629,8 +2640,8 @@ if (!activeTrip) return null;
           <View style={[styles.newTripModalCard,isDark&&{backgroundColor:appearanceColors.surface,borderColor:appearanceColors.border,borderWidth:1}]}>
             <View style={styles.planModalHeader}>
               <View>
-                <Text style={styles.planModalTitle}>새 여행 만들기</Text>
-                <Text style={styles.planModalDate}>여행에 필요한 기본 정보만 먼저 입력해요.</Text>
+                <Text localize style={styles.planModalTitle}>새 여행 만들기</Text>
+                <Text localize style={styles.planModalDate}>여행에 필요한 기본 정보만 먼저 입력해요.</Text>
               </View>
               <Pressable onPress={()=>setShowNewTrip(false)} style={[styles.dateModalClose,isDark&&{backgroundColor:appearanceColors.surface2}]}>
                 <Text style={styles.dateModalCloseText}>✕</Text>
@@ -2647,7 +2658,7 @@ if (!activeTrip) return null;
 
             <View style={[styles.two,isCompact&&styles.stackOnCompact]}>
               <View style={styles.flex}>
-                <Text style={styles.label}>출발일</Text>
+                <Text localize style={styles.label}>출발일</Text>
                 <Pressable
                   onPress={()=>setDatePickerMode("newStart")}
                   style={[styles.dateSelectButton,isDark&&{backgroundColor:appearanceColors.input,borderColor:appearanceColors.border},{borderColor:isDark?appearanceColors.border:uiAccentSoft}]}
@@ -2660,7 +2671,7 @@ if (!activeTrip) return null;
               </View>
 
               <View style={styles.flex}>
-                <Text style={styles.label}>귀국일</Text>
+                <Text localize style={styles.label}>귀국일</Text>
                 <Pressable
                   onPress={()=>setDatePickerMode("newEnd")}
                   style={[styles.dateSelectButton,isDark&&{backgroundColor:appearanceColors.input,borderColor:appearanceColors.border},{borderColor:isDark?appearanceColors.border:uiAccentSoft}]}
@@ -2681,13 +2692,13 @@ if (!activeTrip) return null;
               placeholder="예: 1500000"
             />
 
-            <Text style={[styles.label,{marginTop:4}]}>동행인</Text>
-            <Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>나는 자동으로 포함돼요. 함께 갈 사람만 추가해 주세요.</Text>
+            <Text localize style={[styles.label,{marginTop:4}]}>동행인</Text>
+            <Text localize style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>나는 자동으로 포함돼요. 함께 갈 사람만 추가해 주세요.</Text>
             {newTripCompanions.map((name,index)=>(
               <View key={`${name}-${index}`} style={[styles.homePersonRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
                 <View style={styles.flex}><Text style={styles.homePersonName}>{name}</Text></View>
                 <Pressable onPress={()=>setNewTripCompanions(prev=>prev.filter((_,i)=>i!==index))} style={[styles.homePersonDeleteButton,isDark&&{backgroundColor:appearanceColors.dangerSurface,borderColor:appearanceColors.dangerBorder}]}>
-                  <Text style={styles.homePersonDeleteText}>삭제</Text>
+                  <Text localize style={styles.homePersonDeleteText}>삭제</Text>
                 </Pressable>
               </View>
             ))}
@@ -2701,11 +2712,11 @@ if (!activeTrip) return null;
                 placeholder="동행인 이름"
               />
               <Pressable onPress={addNewTripCompanion} style={[styles.homePersonAddButton,{backgroundColor:theme.accent}]}>
-                <Text style={styles.homePersonAddButtonText}>추가</Text>
+                <Text localize style={styles.homePersonAddButtonText}>추가</Text>
               </Pressable>
             </View>
 
-            <Text style={styles.newTripHint}>
+            <Text localize style={styles.newTripHint}>
               여행 설정과 동행인을 한 번에 만들 수 있어요. 생성 후에도 홈에서 언제든 수정할 수 있어요.
             </Text>
 
@@ -2713,7 +2724,7 @@ if (!activeTrip) return null;
               onPress={createNewTripQuick}
               style={[styles.planSaveButton,{backgroundColor:theme.accent}]}
             >
-              <Text style={styles.planSaveText}>여행 만들기</Text>
+              <Text localize style={styles.planSaveText}>여행 만들기</Text>
             </Pressable>
           </View>
         </View>
@@ -2733,7 +2744,7 @@ if (!activeTrip) return null;
                 <Text style={styles.planModalTitle}>{editingPlanId ? "일정 수정" : "일정 추가"}</Text>
                 <Pressable onPress={()=>setDatePickerMode("plan")} style={styles.planModalDateButton}>
                   <Text style={styles.planModalDate}>📅 {planModalDate}</Text>
-                  <Text style={[styles.planModalDateChange,{color:theme.accent}]}>날짜 변경</Text>
+                  <Text localize style={[styles.planModalDateChange,{color:theme.accent}]}>날짜 변경</Text>
                 </Pressable>
               </View>
               <Pressable onPress={()=>setPlanModalDate(null)} style={[styles.dateModalClose,isDark&&{backgroundColor:appearanceColors.surface2}]}>
@@ -2741,7 +2752,7 @@ if (!activeTrip) return null;
               </Pressable>
             </View>
 
-            <Text style={styles.label}>일정 종류</Text>
+            <Text localize style={styles.label}>일정 종류</Text>
             <View style={styles.planTypeRow}>
               {([
                 ["flight","✈️ 항공"],
@@ -2757,7 +2768,7 @@ if (!activeTrip) return null;
                     planType===value && {backgroundColor:theme.accent,borderColor:theme.accent}
                   ]}
                 >
-                  <Text style={[styles.planTypeText,planType===value&&styles.planTypeTextActive]}>{label}</Text>
+                  <Text style={[styles.planTypeText,planType===value&&styles.planTypeTextActive]} localize>{label}</Text>
                 </Pressable>
               ))}
             </View>
@@ -2784,7 +2795,7 @@ if (!activeTrip) return null;
               onPress={openPlanMap}
               style={[styles.profilePhotoAction,{borderColor:theme.accent,alignSelf:"flex-start",marginBottom:8}]}
             >
-              <Text style={[styles.profilePhotoActionText,{color:theme.accent}]}>🗺️ Apple 지도에서 확인</Text>
+              <Text localize style={[styles.profilePhotoActionText,{color:theme.accent}]}>🗺️ Apple 지도에서 확인</Text>
             </Pressable>
             <Field
               label="메모"
@@ -2795,9 +2806,9 @@ if (!activeTrip) return null;
 
             <Pressable onPress={()=>setPlanReminder(v=>!v)} style={[styles.planReminderRow,isDark&&{backgroundColor:appearanceColors.surface2,borderColor:appearanceColors.border}]}>
               <View style={[styles.planReminderCheck,{backgroundColor:planReminder?theme.accent:"transparent",borderColor:planReminder?theme.accent:"#C9CBD6"}]}><Text style={styles.planReminderCheckText}>{planReminder?"✓":""}</Text></View>
-              <View style={styles.flex}><Text style={[styles.bold,isDark&&{color:appearanceColors.text}]}>일정 30분 전 알림</Text><Text style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>시간이 있는 미래 일정에 적용</Text></View>
+              <View style={styles.flex}><Text localize style={[styles.bold,isDark&&{color:appearanceColors.text}]}>일정 30분 전 알림</Text><Text localize style={[styles.muted,isDark&&{color:appearanceColors.muted}]}>시간이 있는 미래 일정에 적용</Text></View>
             </Pressable>
-            <Text style={[styles.analyticsFootnote,isDark&&{color:appearanceColors.muted}]}>
+            <Text localize style={[styles.analyticsFootnote,isDark&&{color:appearanceColors.muted}]}>
               ⏰ 시간까지 저장하고 알림을 켜면 일정 30분 전에 기기 알림을 예약해요.
             </Text>
             <Pressable
@@ -2856,7 +2867,7 @@ if (!activeTrip) return null;
  }
 
 export default function Index() {
-  return <AppearanceProvider><IndexContent /></AppearanceProvider>;
+  return <AppearanceProvider><LanguageProvider><IndexContent /></LanguageProvider></AppearanceProvider>;
 }
 
 function DatePickerModal({
@@ -2975,7 +2986,7 @@ function DatePickerModal({
             onPress={()=>onSelect(todayValue)}
             style={[styles.dateTodayButton,{backgroundColor:accentSoft}]}
           >
-            <Text style={[styles.dateTodayText,{color:accent}]}>오늘 날짜 선택</Text>
+            <Text localize style={[styles.dateTodayText,{color:accent}]}>오늘 날짜 선택</Text>
           </Pressable>
         </View>
       </View>
@@ -3003,8 +3014,8 @@ function ManageGroup({
       <View style={styles.rowBetween}>
       <RNPressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{expanded:open}} onPress={onPress} style={[styles.manageGroupHeader,{flex:1,minWidth:0}]}>
         <View style={styles.flex}>
-          <Text style={[styles.manageGroupTitle,isDark&&{color:colors.text}]}>{title}</Text>
-          {!!subtitle && <Text style={[styles.manageGroupSubtitle,isDark&&{color:colors.muted}]}>{subtitle}</Text>}
+          <Text localize style={[styles.manageGroupTitle,isDark&&{color:colors.text}]}>{title}</Text>
+          {!!subtitle && <Text style={[styles.manageGroupSubtitle,isDark&&{color:colors.muted}]} localize>{subtitle}</Text>}
         </View>
         <Text style={[styles.manageChevron,isDark&&{color:colors.muted}]}>{open ? "⌃" : "⌄"}</Text>
       </RNPressable>
@@ -3034,15 +3045,15 @@ function Card({
         { scale: enter.interpolate({inputRange:[0,1],outputRange:[0.992,1]}) },
       ],
     }]}>
-      <View style={styles.rowBetween}><Text style={[styles.cardTitle,{flex:1}]}>{title}</Text>{help || <AppHelp topic={title}/>}</View>{children}
+      <View style={styles.rowBetween}><Text style={[styles.cardTitle,{flex:1}]} localize>{title}</Text>{help || <AppHelp topic={title}/>}</View>{children}
     </Animated.View>
   );
 }
-function Stat({label,value}:{label:string;value:string}){const {isDark,colors}=useAppAppearance();return <View style={[styles.stat,isDark&&{backgroundColor:colors.surface2}]}><Text numberOfLines={1} style={styles.muted}>{label}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.statValue}>{value}</Text></View>}
-function Field(props:React.ComponentProps<typeof TextInput>&{label:string}){const{label,...rest}=props;const{isDark,colors}=useAppAppearance();return <View><Text style={styles.label}>{label}</Text><TextInput style={[styles.input,isDark&&{backgroundColor:colors.input,borderColor:colors.border}]} {...rest}/></View>}
-function Chip({text,selected,onPress}:{text:string;selected:boolean;onPress:()=>void}){const{isDark,colors}=useAppAppearance();return <Pressable onPress={onPress} style={[styles.chip,isDark&&!selected&&{backgroundColor:colors.surface2,borderColor:colors.border,borderWidth:1},selected&&styles.chipSelected]}><Text style={selected?styles.chipSelectedText:undefined}>{text}</Text></Pressable>}
-function Primary({text,onPress,full}:{text:string;onPress:()=>void;full?:boolean}){return <Pressable onPress={onPress} style={[styles.primary,full&&{width:"100%",marginTop:18}]}><Text style={styles.primaryText}>{text}</Text></Pressable>}
-function TabButton({icon,label,active,onPress}:{icon:string;label:string;active:boolean;onPress:()=>void}){const{isDark}=useAppAppearance();return <RNPressable accessibilityRole="tab" accessibilityLabel={`${label} 탭`} accessibilityState={{selected:active}} hitSlop={3} onPress={onPress} style={[styles.tab,active&&styles.tabActive,isDark&&active&&{backgroundColor:"rgba(80,140,255,0.18)"}]}><Text allowFontScaling={false} style={[styles.tabIcon,active&&styles.tabIconActive]}>{icon}</Text><Text allowFontScaling={false} numberOfLines={1} style={[styles.tabText,active&&styles.tabTextActive]}>{label}</Text></RNPressable>}
+function Stat({label,value}:{label:string;value:string}){const {isDark,colors}=useAppAppearance();return <View style={[styles.stat,isDark&&{backgroundColor:colors.surface2}]}><Text numberOfLines={1} style={styles.muted} localize>{label}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.statValue}>{value}</Text></View>}
+function Field(props:React.ComponentProps<typeof TextInput>&{label:string}){const{label,...rest}=props;const{isDark,colors}=useAppAppearance();return <View><Text style={styles.label} localize>{label}</Text><TextInput style={[styles.input,isDark&&{backgroundColor:colors.input,borderColor:colors.border}]} {...rest}/></View>}
+function Chip({text,selected,onPress,localize=false}:{text:string;selected:boolean;onPress:()=>void;localize?:boolean}){const{isDark,colors}=useAppAppearance();return <Pressable onPress={onPress} style={[styles.chip,isDark&&!selected&&{backgroundColor:colors.surface2,borderColor:colors.border,borderWidth:1},selected&&styles.chipSelected]}><Text localize={localize} style={selected?styles.chipSelectedText:undefined}>{text}</Text></Pressable>}
+function Primary({text,onPress,full}:{text:string;onPress:()=>void;full?:boolean}){return <Pressable onPress={onPress} style={[styles.primary,full&&{width:"100%",marginTop:18}]}><Text localize style={styles.primaryText}>{text}</Text></Pressable>}
+function TabButton({icon,label,active,onPress}:{icon:string;label:string;active:boolean;onPress:()=>void}){const{isDark}=useAppAppearance();return <RNPressable accessibilityRole="tab" accessibilityLabel={`${label} 탭`} accessibilityState={{selected:active}} hitSlop={3} onPress={onPress} style={[styles.tab,active&&styles.tabActive,isDark&&active&&{backgroundColor:"rgba(80,140,255,0.18)"}]}><Text allowFontScaling={false} style={[styles.tabIcon,active&&styles.tabIconActive]}>{icon}</Text><Text allowFontScaling={false} numberOfLines={1} style={[styles.tabText,active&&styles.tabTextActive]} localize>{label}</Text></RNPressable>}
 
 const styles=StyleSheet.create({
   sharedRoomBanner:{marginTop:14,borderRadius:18,borderWidth:1,padding:14},

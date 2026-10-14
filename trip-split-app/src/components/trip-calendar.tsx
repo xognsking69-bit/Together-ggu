@@ -1,8 +1,11 @@
+import AppHelp from "./app-help";
+import {useAppAppearance} from "./appearance-context";
+import {useAppLanguage,translateUI} from "./language-context";
+import { SmoothText as Text } from "./smooth-text";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import type { Expense, Person } from "../types";
@@ -74,6 +77,9 @@ export default function TripCalendar({
   onEditPlan,
   onDeletePlan,
 }: Props) {
+  const {isDark,colors}=useAppAppearance();
+  const {language}=useAppLanguage();
+  const locale={ko:"ko-KR",en:"en-US",ja:"ja-JP",zh:"zh-CN"}[language];
   const initial = initialDate
     ? new Date(`${initialDate}T12:00:00`)
     : new Date();
@@ -183,21 +189,21 @@ export default function TripCalendar({
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card,isDark&&{backgroundColor:colors.surface,borderColor:colors.border}]}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>{year}년 {month+1}월</Text>
+        <View style={{flex:1,minWidth:0,marginRight:8}}>
+          <Text style={styles.title}>{new Date(year,month,1).toLocaleDateString(locale,{year:"numeric",month:"long"})}</Text>
           <Text style={styles.helper}>
             {startDate && endDate
               ? `${startDate.replace(/-/g,".")} ~ ${endDate.replace(/-/g,".")}`
-              : "여행 날짜를 선택하면 일정이 달력에 표시돼요."}
+              : translateUI("여행 날짜를 선택하면 일정이 달력에 표시돼요.",language)}
           </Text>
         </View>
-        <View style={styles.nav}>
-          <Pressable style={styles.navButton} onPress={()=>moveMonth(-1)}>
+        <View style={[styles.nav,{alignItems:"center"}]}><AppHelp topic="일정"/>
+          <Pressable style={[styles.navButton,isDark&&{backgroundColor:colors.surface2}]} onPress={()=>moveMonth(-1)}>
             <Text style={styles.navText}>‹</Text>
           </Pressable>
-          <Pressable style={styles.navButton} onPress={()=>moveMonth(1)}>
+          <Pressable style={[styles.navButton,isDark&&{backgroundColor:colors.surface2}]} onPress={()=>moveMonth(1)}>
             <Text style={styles.navText}>›</Text>
           </Pressable>
         </View>
@@ -206,7 +212,7 @@ export default function TripCalendar({
       {Boolean(startDate && endDate) && (
         <View style={[styles.bookingSummary,{backgroundColor:accentSoft}]}>
           <View style={styles.bookingDate}>
-            <Text style={[styles.bookingLabel,{color:accent}]}>출발</Text>
+            <Text localize style={[styles.bookingLabel,{color:accent}]}>출발</Text>
             <Text style={styles.bookingValue}>{startDate!.slice(5).replace("-","/")}</Text>
           </View>
           <View style={styles.bookingLine}>
@@ -219,7 +225,7 @@ export default function TripCalendar({
             <View style={[styles.bookingDot,{backgroundColor:accent}]}/>
           </View>
           <View style={[styles.bookingDate,{alignItems:"flex-end"}]}>
-            <Text style={[styles.bookingLabel,{color:accent}]}>귀국</Text>
+            <Text localize style={[styles.bookingLabel,{color:accent}]}>귀국</Text>
             <Text style={styles.bookingValue}>{endDate!.slice(5).replace("-","/")}</Text>
           </View>
         </View>
@@ -234,7 +240,7 @@ export default function TripCalendar({
               i===0&&styles.sunday,
               i===6&&styles.saturday
             ]}
-          >{name}</Text>
+          >{language==="ko"?name:new Date(2026,0,4+i).toLocaleDateString(locale,{weekday:"short"})}</Text>
         ))}
       </View>
 
@@ -315,13 +321,13 @@ export default function TripCalendar({
       </View>
 
       <View style={styles.sectionTitleRow}>
-        <Text style={styles.sectionTitle}>오늘의 일정</Text>
+        <Text localize style={styles.sectionTitle}>오늘의 일정</Text>
         {Boolean(onAddPlan) && (
           <Pressable
             onPress={()=>onAddPlan?.(selectedDate)}
             style={[styles.smallAction,{backgroundColor:accentSoft}]}
           >
-            <Text style={[styles.smallActionText,{color:accent}]}>＋ 일정 추가</Text>
+            <Text localize style={[styles.smallActionText,{color:accent}]}>＋ 일정 추가</Text>
           </Pressable>
         )}
       </View>
@@ -333,14 +339,14 @@ export default function TripCalendar({
             <Text style={styles.noPlanTitle}>
               {selectedTripDay ? `여행 ${selectedTripDay}일차` : "선택한 날짜"}
             </Text>
-            <Text style={styles.noPlanText}>
+            <Text localize style={styles.noPlanText}>
               아직 등록된 일정이 없어요. 항공편·숙소·관광 일정을 추가해보세요.
             </Text>
           </View>
         </View>
       ) : (
         selectedPlans.map(plan=>(
-          <View key={plan.id} style={styles.planCard}>
+          <View key={plan.id} style={[styles.planCard,isDark&&{backgroundColor:colors.surface2,borderColor:colors.border}]}>
             <View style={[styles.planIconWrap,{backgroundColor:accentSoft}]}>
               <Text style={styles.planIcon}>{planIcon(plan.type)}</Text>
             </View>
@@ -354,8 +360,8 @@ export default function TripCalendar({
             </View>
             <View style={styles.planActions}>
               {Boolean(onEditPlan) && (
-                <Pressable onPress={()=>onEditPlan?.(plan)} style={styles.planEdit}>
-                  <Text style={styles.planEditText}>수정</Text>
+                <Pressable onPress={()=>onEditPlan?.(plan)} style={[styles.planEdit,isDark&&{backgroundColor:colors.surface2}]}>
+                  <Text localize style={styles.planEditText}>수정</Text>
                 </Pressable>
               )}
               {Boolean(onDeletePlan) && (
@@ -369,17 +375,17 @@ export default function TripCalendar({
       )}
 
       <View style={styles.sectionTitleRow}>
-        <Text style={styles.sectionTitle}>지출</Text>
+        <Text localize style={styles.sectionTitle}>지출</Text>
         <Pressable
           style={[styles.smallAction,{backgroundColor:accent}]}
           onPress={()=>onAddForDate(selectedDate)}
         >
-          <Text style={styles.addText}>＋ 지출 추가</Text>
+          <Text localize style={styles.addText}>＋ 지출 추가</Text>
         </Pressable>
       </View>
 
       {!selectedExpenses.length ? (
-        <Text style={styles.empty}>이 날짜에는 아직 지출이 없어요.</Text>
+        <Text localize style={styles.empty}>이 날짜에는 아직 지출이 없어요.</Text>
       ) : (
         selectedExpenses.map(expense=>{
           const payer=people.find(p=>p.id===expense.payerId)?.name||"?";
