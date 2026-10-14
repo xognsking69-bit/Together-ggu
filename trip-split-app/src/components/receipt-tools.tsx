@@ -1,8 +1,8 @@
-import { SmoothText as Text } from "./smooth-text";
 import { CURRENCIES, type Currency } from "../currencies";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
+  Text,
   Pressable,
   StyleSheet,
   Platform,
@@ -284,8 +284,8 @@ export default function ReceiptTools({
     <View style={styles.card}>
       <View style={styles.titleRow}>
         <View style={styles.flex}>
-          <Text localize style={styles.title}>🧾 영수증 AI 자동 입력</Text>
-          <Text localize style={styles.helper}>
+          <Text style={styles.title}>🧾 영수증 AI 자동 입력</Text>
+          <Text style={styles.helper}>
             영수증을 촬영하거나 사진을 고르면 가게명·날짜·총액·통화·카테고리를 자동으로 채워요.
           </Text>
         </View>
@@ -304,13 +304,13 @@ export default function ReceiptTools({
             }}
             style={styles.removeButton}
           >
-            <Text localize style={styles.removeText}>사진 제거</Text>
+            <Text style={styles.removeText}>사진 제거</Text>
           </Pressable>
         </View>
       ) : (
         <View style={[styles.emptyPreview,{backgroundColor:accentSoft}]}>
           <Text style={styles.emptyEmoji}>📷</Text>
-          <Text localize style={styles.emptyText}>영수증 사진을 추가해주세요</Text>
+          <Text style={styles.emptyText}>영수증 사진을 추가해주세요</Text>
         </View>
       )}
 
@@ -322,10 +322,10 @@ export default function ReceiptTools({
 
       <View style={styles.actions}>
         <Pressable onPress={takePhoto} style={styles.secondaryButton}>
-          <Text localize style={styles.secondaryText}>📸 촬영</Text>
+          <Text style={styles.secondaryText}>📸 촬영</Text>
         </Pressable>
         <Pressable onPress={pickPhoto} style={styles.secondaryButton}>
-          <Text localize style={styles.secondaryText}>🖼 사진 선택</Text>
+          <Text style={styles.secondaryText}>🖼 사진 선택</Text>
         </Pressable>
       </View>
 
@@ -346,7 +346,7 @@ export default function ReceiptTools({
       {lastResult && (
         <View style={[styles.resultBox,{backgroundColor:accentSoft}]}>
           <View style={styles.resultHeader}>
-            <Text localize style={[styles.resultTitle,{color:accent}]}>AI 인식 결과</Text>
+            <Text style={[styles.resultTitle,{color:accent}]}>AI 인식 결과</Text>
             {lastResult.confidence != null && (
               <Text style={styles.confidence}>
                 신뢰도 {Math.round(lastResult.confidence * 100)}%
@@ -364,7 +364,7 @@ export default function ReceiptTools({
             {lastResult.currency || ""}
             {lastResult.category ? ` · ${lastResult.category}` : ""}
           </Text>
-          <Text localize style={styles.confirmText}>
+          <Text style={styles.confirmText}>
             아래 지출 입력칸에 자동 반영됐어요. 저장하기 전에 금액과 날짜를 한 번 확인해주세요.
           </Text>
         </View>
