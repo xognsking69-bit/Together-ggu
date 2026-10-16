@@ -2,6 +2,13 @@ import {HELP_TRANSLATIONS} from "./help-translations";
 // App-owned UI labels only. Never apply to travel names, people or entered content.
 export const DICTIONARY:Record<string,readonly [string,string,string]>={
 ...HELP_TRANSLATIONS,
+"정산 정보를 확인해주세요.":["Check settlement details.", "精算情報を確認してください。", "请检查结算信息。"],
+"결제자와 참여자, 사용자별 분담금의 합계가 지출 금액과 일치하는지 확인해주세요.":["Check the payer, participants, and that individual shares add up to the expense total.", "支払者、参加者、各自の負担額の合計が支出額と一致するか確認してください。", "请检查付款人、参与者以及个人分摊金额之和是否等于费用总额。"],
+"지출 내역의 결제자, 참여자와 사용자별 분담금을 확인한 뒤 다시 시도해주세요.":["Check each expense’s payer, participants and individual shares, then try again.", "各支出の支払者、参加者、各自の負担額を確認してから再試行してください。", "请检查费用记录中的付款人、参与者和个人分摊金额后重试。"],
+"사용자별 분담금이 적용되어 있어요. 금액이나 참여자를 바꾸려면 분담금을 확인해주세요.":["Individual shares are applied. Check them when changing the amount or participants.", "個別の負担額が設定されています。金額や参加者を変更するときは負担額を確認してください。", "已应用个人分摊金额。更改金额或参与者时请检查分摊金额。"],
+"균등 분할로 변경":["Switch to equal split", "均等割りに変更", "改为平均分摊"],
+"저장된 사용자별 분담금을 해제할까요? 지출 저장을 눌러야 변경 내용이 적용됩니다.":["Clear individual shares? Changes apply only after you save the expense.", "個別の負担額を解除しますか？支出を保存すると変更が適用されます。", "清除个人分摊金额？保存费用后才会应用更改。"],
+
 '알겠어요':['Got it','わかりました','知道了'], '출발':['Departure','出発','出发'], '귀국':['Return','帰国','返回'],
 '정산 결과 공유':['Share settlement','精算結果を共有','分享结算结果'], '수정 저장':['Save changes','変更を保存','保存更改'],
 '친구에게 실시간 초대 보내기':['Invite friends to this shared trip','友達を共有旅行に招待','邀请朋友加入共享旅行'],

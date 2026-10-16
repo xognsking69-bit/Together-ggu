@@ -45,7 +45,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:worker": "node --test worker/*.test.mjs"
+    "test:worker": "node --test worker/*.test.mjs",
+    "test:settlement": "node --test scripts/settlement.test.mjs"
   },
   "private": true
 }

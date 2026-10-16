@@ -16,7 +16,7 @@ import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
 import SharedInviteHelp from "../components/shared-invite-help";
 import AppHelp from "../components/app-help";
-import {LanguageProvider,useAppLanguage,LANGUAGES} from "../components/language-context";
+import {LanguageProvider,useAppLanguage,LANGUAGES,translateUI} from "../components/language-context";
 import SmoothPressable from "../components/smooth-pressable";
 import { SmoothText as Text, SmoothTextInput as TextInput } from "../components/smooth-text";
 import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../components/appearance-context";
@@ -606,7 +606,14 @@ function IndexContent() {
     borderWidth: isDark ? StyleSheet.hairlineWidth : 0,
   };
   const total = useMemo(() => activeTrip?.expenses.reduce((s,e)=>s+e.krwAmount,0) || 0, [activeTrip]);
-  const balances = useMemo(() => computeBalances(activeTrip?.people || [], activeTrip?.expenses || []), [activeTrip]);
+  const settlement = useMemo(() => {
+    try {
+      return { balances: computeBalances(activeTrip?.people || [], activeTrip?.expenses || []), error: false };
+    } catch {
+      return { balances: {} as ReturnType<typeof computeBalances>, error: true };
+    }
+  }, [activeTrip]);
+  const balances = settlement.balances;
   const transfers = useMemo(() => minimalTransfers(balances), [balances]);
   const categoryAnalytics = useMemo(() => {
     const sums = Object.fromEntries(categories.map(c=>[c,0])) as Record<string,number>;
@@ -942,6 +949,13 @@ if (!activeTrip) return null;
       ...(receiptAnalysis ? { receiptAnalysis } : {}),
       ...(receiptItemShares ? { customShares:Object.fromEntries(Object.entries(receiptItemShares).map(([id,share])=>[id,share*r])) } : {})
     };
+
+    try {
+      computeBalances(activeTrip.people, [expense]);
+    } catch {
+      Alert.alert(translateUI("정산 정보를 확인해주세요.", language), translateUI("결제자와 참여자, 사용자별 분담금의 합계가 지출 금액과 일치하는지 확인해주세요.", language));
+      return;
+    }
 
     updateTrip(trip=>({
       ...trip,
@@ -1696,6 +1710,10 @@ if (!activeTrip) return null;
   }
 
   async function shareSettlement() {
+    if (settlement.error) {
+      Alert.alert(translateUI("정산 정보를 확인해주세요.", language), translateUI("지출 내역의 결제자, 참여자와 사용자별 분담금을 확인한 뒤 다시 시도해주세요.", language));
+      return;
+    }
     const names = Object.fromEntries(activeTrip.people.map(p=>[p.id,p.name]));
     const lines = transfers.length
       ? transfers.map(t=>`${names[t.from]} → ${names[t.to]} ${won(t.amount)}`)
@@ -2143,6 +2161,17 @@ if (!activeTrip) return null;
           {!!rateError && <Text style={styles.rateError}>{rateError}</Text>}
           <Text localize style={styles.label}>누가 결제했나요?</Text>
           <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={payerId===p.id} onPress={()=>setPayerId(p.id)}/>)}</View>
+          {receiptItemShares && <View>
+            <Text localize style={styles.muted}>사용자별 분담금이 적용되어 있어요. 금액이나 참여자를 바꾸려면 분담금을 확인해주세요.</Text>
+            <Pressable onPress={()=>Alert.alert(
+              translateUI("균등 분할로 변경", language),
+              translateUI("저장된 사용자별 분담금을 해제할까요? 지출 저장을 눌러야 변경 내용이 적용됩니다.", language),
+              [{text:translateUI("취소",language),style:"cancel"},
+               {text:translateUI("균등 분할로 변경",language),onPress:()=>setReceiptItemShares(null)}]
+            )} style={{paddingVertical:12}}>
+              <Text localize style={[styles.bold,{color:theme.accent}]}>균등 분할로 변경</Text>
+            </Pressable>
+          </View>}
           <Text localize style={styles.label}>누가 같이 사용했나요?</Text>
           <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={participants.includes(p.id)} onPress={()=>setParticipants(ids=>ids.includes(p.id)?ids.filter(id=>id!==p.id):[...ids,p.id])}/>)}</View>
           <Primary text={editingId?"수정 저장":"지출 저장"} onPress={saveExpense} full/>
@@ -2591,6 +2620,9 @@ if (!activeTrip) return null;
             {tripSummaryTopCategoryAmount>0 && <Text style={[styles.analyticsFootnote,isDark&&{color:appearanceColors.muted}]}>가장 많이 쓴 카테고리 · {tripSummaryTopCategory} {won(tripSummaryTopCategoryAmount)}</Text>}
           </Card>
 
+          {settlement.error ? <Card cardStyle={cardDecorStyle} title="정산 정보를 확인해주세요.">
+            <Text localize style={styles.danger}>지출 내역의 결제자, 참여자와 사용자별 분담금을 확인한 뒤 다시 시도해주세요.</Text>
+          </Card> : <>
           <Card cardStyle={cardDecorStyle} title="사람별 정산">
             {activeTrip.people.map(p=>{
               const b=balances[p.id]||{paid:0,owed:0,net:0};
@@ -2625,6 +2657,7 @@ if (!activeTrip) return null;
             <Primary text="정산 결과 공유" onPress={shareSettlement} full/>
             {settlementDoneCount>0 && <Pressable onPress={resetSettlementDone} style={{alignSelf:"center",padding:10}}><Text localize style={styles.muted}>완료 체크 초기화</Text></Pressable>}
           </Card>
+          </>}
         </>}
         </Animated.View>
       </ScrollView>
