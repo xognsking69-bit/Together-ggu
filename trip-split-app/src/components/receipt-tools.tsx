@@ -1,6 +1,8 @@
+import { prepareReceiptPhoto, removeOwnedReceiptCopy } from "../receipt-files";
+import { useAppLanguage, translateUI } from "./language-context";
 import { SmoothText as Text } from "./smooth-text";
 import { CURRENCIES, type Currency } from "../currencies";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Pressable,
@@ -29,6 +31,7 @@ type Props = {
   accentSoft?: string;
   receiptUri: string | null;
   onReceiptUriChange: (uri: string | null) => void;
+  onPreparingChange?: (preparing: boolean) => void;
   onDetected: (result: ReceiptResult) => void;
 };
 
@@ -125,8 +128,14 @@ export default function ReceiptTools({
   accentSoft = "#EEEEFF",
   receiptUri,
   onReceiptUriChange,
+  onPreparingChange,
   onDetected,
 }: Props) {
+  const {language}=useAppLanguage();
+  const mounted=useRef(true);
+  const selectionGeneration=useRef(0);
+  const [preparing, setPreparing]=useState(false);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;selectionGeneration.current++;onPreparingChange?.(false);};},[onPreparingChange]);
   const [analyzing, setAnalyzing] = useState(false);
   const [unavailableUri, setUnavailableUri] = useState<string | null>(null);
   const photoUnavailable = Boolean(receiptUri && unavailableUri === receiptUri);
@@ -156,10 +165,27 @@ export default function ReceiptTools({
     void refreshUsage().catch(() => {});
   }, [refreshUsage]);
 
-  function usePickedImage(uri?: string) {
-    if (!uri) return;
-    onReceiptUriChange(uri);
-    setLastResult(null);
+  async function usePickedImage(uri?: string) {
+    if (!uri || !mounted.current) return;
+    const generation=++selectionGeneration.current;
+    setPreparing(true);
+    onPreparingChange?.(true);
+    try {
+      const prepared=await prepareReceiptPhoto(uri);
+      if(!mounted.current || generation !== selectionGeneration.current) {
+        if(prepared.created) { try { removeOwnedReceiptCopy(prepared.uri); } catch {} }
+        return;
+      }
+      onReceiptUriChange(prepared.uri);
+      setLastResult(null);
+    } catch {
+      if(mounted.current && generation===selectionGeneration.current) Alert.alert(
+        translateUI("사진 보관 실패",language),
+        translateUI("영수증 사진을 앱에 보관하지 못했어요. 저장 공간을 확인하고 다시 선택해주세요.",language)
+      );
+    } finally {
+      if(mounted.current && generation===selectionGeneration.current) { setPreparing(false); onPreparingChange?.(false); }
+    }
   }
 
   async function takePhoto() {
@@ -175,7 +201,7 @@ export default function ReceiptTools({
       allowsEditing: false,
     });
 
-    if (!result.canceled) usePickedImage(result.assets[0]?.uri);
+    if (!result.canceled) await usePickedImage(result.assets[0]?.uri);
   }
 
   async function pickPhoto() {
@@ -191,11 +217,11 @@ export default function ReceiptTools({
       allowsEditing: false,
     });
 
-    if (!result.canceled) usePickedImage(result.assets[0]?.uri);
+    if (!result.canceled) await usePickedImage(result.assets[0]?.uri);
   }
 
   async function analyzeReceipt() {
-    if (!receiptUri || photoUnavailable || analyzing) return;
+    if (!receiptUri || photoUnavailable || analyzing || preparing) return;
 
     const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
     if (!endpoint) {
@@ -206,6 +232,7 @@ export default function ReceiptTools({
       return;
     }
 
+    const generation=selectionGeneration.current;
     try {
       setAnalyzing(true);
 
@@ -238,6 +265,7 @@ export default function ReceiptTools({
       });
 
       const raw = await response.json().catch(() => ({}));
+      if(!mounted.current || generation !== selectionGeneration.current) return;
 
       if (!response.ok) {
         if (response.status === 402 || raw?.code === "AI_CREDITS_REQUIRED") {
@@ -272,13 +300,14 @@ export default function ReceiptTools({
       onDetected(parsed);
       await refreshUsage().catch(() => {});
     } catch (error: any) {
+      if(!mounted.current || generation !== selectionGeneration.current) return;
       Alert.alert(
         "영수증 분석 실패",
         error?.message ||
           "사진 상태나 네트워크를 확인해주세요. AI 결과는 저장 전에 직접 확인해주세요."
       );
     } finally {
-      setAnalyzing(false);
+      if(mounted.current && generation===selectionGeneration.current) setAnalyzing(false);
     }
   }
 
@@ -301,7 +330,9 @@ export default function ReceiptTools({
           <Image key={receiptUri} source={{ uri: receiptUri }} style={styles.preview} resizeMode="cover" onError={()=>setUnavailableUri(receiptUri)} onLoad={()=>setUnavailableUri(null)} />
           {photoUnavailable && <Text localize style={styles.helper}>영수증 사진을 불러올 수 없어요. 원본 사진을 다시 선택해주세요. 지출 정보는 그대로 남아 있어요.</Text>}
           <Pressable
+            disabled={preparing || analyzing}
             onPress={() => {
+              selectionGeneration.current++;
               onReceiptUriChange(null);
               setLastResult(null);
             }}
@@ -317,7 +348,11 @@ export default function ReceiptTools({
         </View>
       )}
 
-      <Text localize style={styles.helper}>사진 첨부 해제는 원본 사진이나 서버 데이터 삭제가 아니에요. 영수증 사진은 JSON 백업에 포함되지 않아요.</Text>
+      {preparing && <Text localize style={styles.helper}>영수증 사진 보관 중…</Text>}
+      <Text localize style={styles.helper}>{Platform.OS === "web"
+        ? "웹에서는 영수증 사진을 장기 보관하지 않아요. 원본 사진은 따로 보관해주세요."
+        : "새로 선택한 사진은 앱 전용 폴더에 사본으로 보관해요. 첨부를 해제하고 저장하거나 지출을 삭제하면 기기 저장 성공 후 사용하지 않는 앱 사본을 정리해요. 원본 사진과 서버 데이터는 삭제하지 않아요."}</Text>
+      <Text localize style={styles.helper}>영수증 사진은 JSON 백업에 포함되지 않아요. 원본 사진은 따로 보관해주세요.</Text>
       <View style={styles.usageRow}>
         <Text style={styles.usageText}>
           {usage.freeRemaining < 0 ? "사용량 불러오는 중" : `무료 분석 ${usage.freeRemaining}/5회 남음`}
@@ -325,21 +360,21 @@ export default function ReceiptTools({
       </View>
 
       <View style={styles.actions}>
-        <Pressable onPress={takePhoto} style={styles.secondaryButton}>
+        <Pressable disabled={preparing || analyzing} onPress={takePhoto} style={styles.secondaryButton}>
           <Text style={styles.secondaryText}>📸 촬영</Text>
         </Pressable>
-        <Pressable onPress={pickPhoto} style={styles.secondaryButton}>
+        <Pressable disabled={preparing || analyzing} onPress={pickPhoto} style={styles.secondaryButton}>
           <Text style={styles.secondaryText}>🖼 사진 선택</Text>
         </Pressable>
       </View>
 
       <Pressable
-        disabled={!receiptUri || photoUnavailable || analyzing}
+        disabled={!receiptUri || photoUnavailable || analyzing || preparing}
         onPress={analyzeReceipt}
         style={[
           styles.analyzeButton,
           {backgroundColor:accent},
-          (!receiptUri || photoUnavailable || analyzing) && styles.disabled,
+          (!receiptUri || photoUnavailable || analyzing || preparing) && styles.disabled,
         ]}
       >
         <Text style={styles.analyzeText}>

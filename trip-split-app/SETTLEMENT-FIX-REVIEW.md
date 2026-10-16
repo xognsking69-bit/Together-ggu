@@ -11,20 +11,21 @@ Base: main 0c3f9b96e404fb01b1d1768fe83581c556ce7072. Proposed changes are on PR 
 - A person referenced as payer, participant or custom-share key cannot be removed. No past expenses or payment ownership are rewritten. The pure state transformation rechecks the latest trip snapshot. Unused people remain removable.
 - JSON backups omit device-specific receipt paths and explicitly mark receipt images as excluded. Expense amounts, analyses and allocations remain included. The source state is not mutated.
 - Missing receipt photos show a reselect notice and disable analysis. Detaching a photo is labeled accurately; it is not represented as deleting the original or server data.
+- Newly selected native receipt photos are copied to an app-owned documents directory. Original photos are never moved/deleted. Serialized metadata writes protect referenced copies; retryable cleanup runs after successful storage. Failed data loading no longer silently creates and persists an empty replacement trip.
 - Added guidance is translated for Korean, English, Japanese and simplified Chinese.
 
 ## Validation
-- 76 automated tests pass: 19 settlement regressions, 21 travel data regressions and 36 existing invite/worker tests.
+- 92 automated tests pass: 19 settlement, 21 travel data, 14 receipt lifecycle, 2 release identity and 36 existing invite/worker tests.
 - New tests cover Korean/US date boundaries, year rollover, leap days, DST duration, historical payer/participant protection, unused person deletion, fresh-snapshot rechecks, custom amount parsing, rounding conservation and portable backup immutability.
 - TypeScript no-emit and iOS/Android/web Expo exports passed.
 - Exporting verifies JS bundling, not native signing or device behavior. Existing root-level ads configuration and web notification warnings are not resolved by this patch.
 
 ## Remaining work / limitations
 1. Physical iPhone/Android UI QA: custom editor typing, cancel/save, dark mode, 4 languages, reopen persistence, shared-trip synchronization, missing image/reselection, and notification scheduling.
-2. Receipt originals are still not included in portable backups or copied into managed long-term storage. Detaching is not secure deletion. A dedicated local storage/retention/export/deletion feature needs design and native testing before receipt storage is advertised.
+2. Receipt originals are not included in portable backups. New native selections use managed copies, but older cache photos are not bulk migrated. Native copy/delete behavior remains physically untested; abrupt interruption can leave orphan files. No secure byte-erasure or server-deletion guarantee. See RELEASE-3.28.29.md.
 3. This patch prevents future companion deletion from rewriting history; it cannot reconstruct ownership already overwritten by older releases without a trustworthy backup.
 4. Android production submission of 3.28.28(48) was not verified. This patch is not in Android48 or iOS50. Store status must be checked separately.
 5. App-owned device-local dates are corrected; no server sync/audit timestamps were converted away from UTC.
 
 ## Delivery boundary
-Separate review branch only. No main merge, production deployment, native store upload, paid API usage, or live user-data modification. Versions remain 3.28.28/iOS50/Android48 because no release build is created. A future release must bump matching in-app/package versions and unused native build numbers. Already uploaded binaries do not receive these changes.
+Separate review branch only. No main merge, production deployment, native store upload, paid API usage, or live user-data modification. The source candidate is 3.28.29/iOS51/Android49 with matching app/package/visible identifiers. No signed native release build is created; verify native counters remain unused before building. Already uploaded binaries do not receive these changes.

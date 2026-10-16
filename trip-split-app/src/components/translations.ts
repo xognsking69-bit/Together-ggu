@@ -2,6 +2,21 @@ import {HELP_TRANSLATIONS} from "./help-translations";
 // App-owned UI labels only. Never apply to travel names, people or entered content.
 export const DICTIONARY:Record<string,readonly [string,string,string]>={
 ...HELP_TRANSLATIONS,
+"사진 보관이 끝난 뒤 지출을 저장해주세요.":["Save the expense after the photo has finished storing.","写真の保存が完了してから支出を保存してください。","请等待照片保存完成后再保存费用。"],
+"기기 저장 실패":["Device save failed", "端末への保存に失敗", "设备保存失败"],
+"영수증 사본 정리 필요":["Receipt copy cleanup needed", "領収書のコピーの整理が必要", "需要清理收据副本"],
+"변경 내용을 기기에 저장하지 못했어요. 앱을 닫기 전에 다시 저장해주세요.":["Changes could not be saved on this device. Retry before closing the app.", "変更を端末に保存できませんでした。アプリを閉じる前に再度保存してください。", "无法在此设备上保存更改。请在关闭应用前重试。"],
+"사용하지 않는 영수증 사본 일부를 지우지 못했어요. 다시 시도해주세요.":["Some unused receipt copies could not be removed. Please retry.", "一部の未使用の領収書コピーを削除できませんでした。再試行してください。", "部分未使用的收据副本无法删除。请重试。"],
+"저장 및 사본 정리 재시도":["Retry save and cleanup", "保存と整理を再試行", "重试保存和清理"],
+"사진 보관 실패":["Photo storage failed", "写真の保存に失敗", "照片保存失败"],
+"영수증 사진을 앱에 보관하지 못했어요. 저장 공간을 확인하고 다시 선택해주세요.":["The receipt photo could not be stored in the app. Check available storage and select it again.", "領収書の写真をアプリに保存できませんでした。空き容量を確認して選び直してください。", "无法在应用中保存收据照片。请检查存储空间并重新选择。"],
+"영수증 사진 보관 중…":["Storing receipt photo…", "領収書の写真を保存中…", "正在保存收据照片…"],
+"웹에서는 영수증 사진을 장기 보관하지 않아요. 원본 사진은 따로 보관해주세요.":["Receipt photos are not stored long-term on the web. Keep the originals separately.", "Webでは領収書の写真を長期保存しません。原本は別途保管してください。", "网页版不长期保存收据照片。请单独保留原始照片。"],
+"새로 선택한 사진은 앱 전용 폴더에 사본으로 보관해요. 첨부를 해제하고 저장하거나 지출을 삭제하면 기기 저장 성공 후 사용하지 않는 앱 사본을 정리해요. 원본 사진과 서버 데이터는 삭제하지 않아요.":["Newly selected photos are copied to the app folder. After successfully saving a detached photo or deleting an expense, unused app copies are cleaned up. Original photos and server data are not deleted.", "新たに選択した写真はアプリ専用フォルダーにコピーします。添付解除の保存や支出の削除が端末に正常に保存された後、未使用のアプリ内コピーを整理します。元の写真やサーバーデータは削除しません。", "新选择的照片会复制到应用专用文件夹。取消附件并保存或删除费用且成功保存到设备后，会清理未使用的应用副本。不会删除原始照片或服务器数据。"],
+"영수증 사진은 JSON 백업에 포함되지 않아요. 원본 사진은 따로 보관해주세요.":["Receipt photos are not included in JSON backups. Keep original photos separately.", "領収書の写真はJSONバックアップに含まれません。原本は別途保管してください。", "JSON备份不包含收据照片。请单独保留原始照片。"],
+"저장된 여행을 불러오지 못했어요. 기존 데이터는 덮어쓰지 않았어요.":["Saved trips could not be loaded. Existing data has not been overwritten.", "保存された旅行を読み込めませんでした。既存データは上書きしていません。", "无法加载已保存的旅行。现有数据未被覆盖。"],
+"불러오기 재시도":["Retry loading", "読み込みを再試行", "重试加载"],
+
 "동행인 삭제 불가":["Cannot remove companion", "同行者を削除できません", "无法删除同行者"],
 "이 동행인이 포함된 지출이 있어요. 과거 결제와 분담금을 보존하기 위해 삭제할 수 없어요. 지출 내역을 먼저 확인해주세요.":["This companion is referenced by expenses. Removal is blocked to preserve past payments and shares. Review the expenses first.", "この同行者を含む支出があります。過去の支払いと負担額を保護するため削除できません。支出履歴を確認してください。", "该同行者关联了费用。为保留历史付款和分摊金额，无法删除。请先检查费用记录。"],
 "사용자별 금액 지정":["Set individual amounts", "個別の金額を設定", "设置个人金额"],

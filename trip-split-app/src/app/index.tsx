@@ -12,7 +12,7 @@ import type { AppState, CheckItem, Expense, Person, Trip } from "../types";
 import { computeBalances, minimalTransfers, parseCustomShareInputs } from "../settlement";
 import { localDateKey, parseLocalDate, calendarDayDiff } from "../dates";
 import { personHasExpenses, removeUnusedPerson } from "../people";
-import { loadState, saveState } from "../storage";
+import { loadState, saveState, protectReceiptDraft } from "../storage";
 import { portableBackupState } from "../backup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
@@ -42,7 +42,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.28";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.29";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -191,7 +191,7 @@ function getStableIdentityId() {
       const id = `person-${makeId()}`;
       await AsyncStorage.setItem(IDENTITY_KEY, id);
       return id;
-    });
+    }).catch(error=>{stableIdentityPromise=null;throw error;});
   }
   return stableIdentityPromise;
 }
@@ -301,6 +301,8 @@ function IndexContent() {
   const navInset = isTablet ? Math.max(18, (width - 760) / 2) : isTiny ? 6 : 10;
   const [state, setState] = useState<AppState>(INITIAL);
   const [ready, setReady] = useState(false);
+  const [storageError, setStorageError] = useState(false);
+  const [photoCleanupPending, setPhotoCleanupPending] = useState(false);
   const [tab, setTab] = useState<Tab>("home");
   const [expenseView, setExpenseView] = useState<ExpenseView>("add");
   const [openManageSection, setOpenManageSection] = useState<ManageSection | null>("checklist");
@@ -326,6 +328,7 @@ function IndexContent() {
   const [themeId, setThemeId] = useState<ThemeId>("lavender");
   const [cardStyleId, setCardStyleId] = useState<CardStyleId>("soft");
   const [backgroundStyleId, setBackgroundStyleId] = useState<BackgroundStyleId>("theme");
+  const [receiptPreparing, setReceiptPreparing] = useState(false);
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [receiptAnalysis, setReceiptAnalysis] = useState<ReceiptResult | null>(null);
   const [receiptItemShares, setReceiptItemShares] = useState<Record<string, string> | null>(null);
@@ -363,8 +366,9 @@ function IndexContent() {
   const lastSharedFingerprintRef = useRef<Record<string,string>>({});
   const sharedRoomsRef = useRef<Record<string, SharedRoomMeta>>({});
 
-  useEffect(() => {
-    Promise.all([loadState(), getStableIdentityId()]).then(([saved, identityId]) => {
+  function initializeState() {
+    setStorageError(false);
+    return Promise.all([loadState(), getStableIdentityId()]).then(([saved, identityId]) => {
       const next = applyStableIdentity(migrate(saved), identityId);
       setState(next);
       const trip = next.trips.find(t => t.id === next.activeTripId) || next.trips[0];
@@ -374,10 +378,20 @@ function IndexContent() {
         setDate(trip.start || today());
       }
       setReady(true);
-    });
-  }, []);
+    }).catch(()=>setStorageError(true));
+  }
+  useEffect(() => { void initializeState(); }, []);
 
-  useEffect(() => { if (ready) saveState(state); }, [state, ready]);
+  function retryStateSave() {
+    void saveState(state).then(result=>{
+      setStorageError(false);
+      setPhotoCleanupPending(result.photoCleanupPending);
+    }).catch(()=>setStorageError(true));
+  }
+  useEffect(() => { if (ready) retryStateSave(); }, [state, ready]);
+  useEffect(() => {
+    void protectReceiptDraft(receiptUri).then(result=>setPhotoCleanupPending(result.photoCleanupPending));
+  }, [receiptUri]);
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY)
@@ -906,6 +920,7 @@ if (!activeTrip) return null;
   }
 
   function saveExpense() {
+    if(receiptPreparing) return Alert.alert(translateUI("영수증 사진 보관 중…",language),translateUI("사진 보관이 끝난 뒤 지출을 저장해주세요.",language));
     if (currency !== "KRW" && rateMode === "auto" && (rateLoading || rateError)) return Alert.alert("환율을 확인해주세요.", "환율 조회가 끝난 뒤 저장하거나 직접 환율을 입력해주세요.");
     const a = Number(amount), r = currency === "KRW" ? 1 : Number(rate);
     if (!Number.isFinite(a) || a <= 0) return Alert.alert("금액을 확인해주세요.");
@@ -927,7 +942,7 @@ if (!activeTrip) return null;
       title:title.trim() || category,
       category, date:date || today(), amount:a, currency, rate:r,
       krwAmount:a*r, payerId, participantIds:participants,
-      ...(receiptUri ? { receiptUri } : {}),
+      ...(receiptUri && Platform.OS !== "web" ? { receiptUri } : {}),
       ...(receiptAnalysis ? { receiptAnalysis } : {}),
       ...(customShares ? { customShares } : {})
     };
@@ -1713,12 +1728,19 @@ if (!activeTrip) return null;
     }
   }
 
-  if (!ready) return <SafeAreaView style={[styles.safe,{backgroundColor:theme.bg}]}><View style={styles.center}><Text localize>불러오는 중...</Text></View></SafeAreaView>;
+  if (!ready) return <SafeAreaView style={[styles.safe,{backgroundColor:screenBackground}]}><View style={styles.center}>
+    <Text localize>{storageError?"저장된 여행을 불러오지 못했어요. 기존 데이터는 덮어쓰지 않았어요.":"불러오는 중..."}</Text>
+    {storageError && <Primary text="불러오기 재시도" onPress={()=>{void initializeState();}} full/>}
+  </View></SafeAreaView>;
 
   return (
     <SafeAreaView edges={["top","left","right"]} style={[styles.safe,{backgroundColor:screenBackground}]}>
       <MotionBackdrop accent={theme.accent} accentSoft={uiAccentSoft} />
       <ScrollView keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS==="android"} contentContainerStyle={[styles.content,{paddingBottom:112+safeInsets.bottom,paddingHorizontal:horizontalPadding,maxWidth:contentMaxWidth,width:"100%",alignSelf:"center"}]}>
+        {(storageError || photoCleanupPending) && <Card cardStyle={cardDecorStyle} title={storageError?"기기 저장 실패":"영수증 사본 정리 필요"}>
+          <Text localize style={styles.danger}>{storageError?"변경 내용을 기기에 저장하지 못했어요. 앱을 닫기 전에 다시 저장해주세요.":"사용하지 않는 영수증 사본 일부를 지우지 못했어요. 다시 시도해주세요."}</Text>
+          <Primary text="저장 및 사본 정리 재시도" onPress={retryStateSave} full/>
+        </Card>}
         <Animated.View style={{
           width:"100%",
           opacity: screenMotion,
@@ -2035,11 +2057,13 @@ if (!activeTrip) return null;
             </Pressable>
           </View>
           {expenseView==="add" && <>
-          <ReceiptTools
+          <ReceiptTools key={`${activeTrip.id}:${editingId || "new"}`}
             accent={theme.accent}
             accentSoft={uiAccentSoft}
             receiptUri={receiptUri}
+            onPreparingChange={setReceiptPreparing}
             onReceiptUriChange={uri=>{
+              void protectReceiptDraft(uri).then(result=>setPhotoCleanupPending(result.photoCleanupPending));
               setReceiptUri(uri);
               if (!uri) setReceiptAnalysis(null);
             }}
