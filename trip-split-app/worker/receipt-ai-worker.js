@@ -106,6 +106,14 @@ export default {
       const dataUrl = `data:${mimeType};base64,${arrayBufferToBase64(bytes)}`;
       const result = await analyzeReceipt(env, dataUrl);
       const normalized = normalizeResult(result);
+      // A parseable response is not necessarily a usable receipt. Do not charge
+      // the free allowance when the final total or its currency is unknown.
+      if (!(normalized.amount > 0) || !normalized.currency) {
+        await releaseReservation(usageStub, freeReservation); freeReservation = undefined;
+        await releaseReservation(dailyStub, dailyReservation, "daily"); dailyReservation = undefined;
+        await releaseReservation(globalStub, globalReservation, "daily"); globalReservation = undefined;
+        return json({ code: "RECEIPT_UNREADABLE", error: "금액과 통화를 읽지 못했습니다. 이용 횟수는 차감되지 않았습니다." }, 422);
+      }
 
       await commitReservation(usageStub, freeReservation); freeReservation = undefined;
       await commitReservation(dailyStub, dailyReservation, "daily"); dailyReservation = undefined;

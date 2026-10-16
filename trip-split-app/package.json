@@ -49,7 +49,8 @@
     "test:settlement": "node --test scripts/settlement.test.mjs",
     "test:travel-data": "node --test scripts/travel-data.test.mjs",
     "test:receipt-lifecycle": "node --test scripts/receipt-lifecycle.test.mjs",
-    "test": "node --test scripts/*.test.mjs worker/*.test.mjs"
+    "test": "node --test scripts/*.test.mjs worker/*.test.mjs",
+    "test:monetization": "node --test scripts/ad-removal.test.mjs"
   },
   "private": true
 }

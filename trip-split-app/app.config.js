@@ -40,6 +40,16 @@ module.exports = () => {
     ],
     extra: {
       ...expo.extra,
+      // Off until product, pricing, privacy and sandbox tests are approved.
+      monetization: process.env.TOGETRIP_AD_REMOVAL_RELEASE_APPROVED === 'true' ? {
+        adRemovalReleaseApproved: true,
+        iosPublicKey: process.env.TOGETRIP_RC_IOS_PUBLIC_KEY || '',
+        androidPublicKey: process.env.TOGETRIP_RC_ANDROID_PUBLIC_KEY || '',
+        iosProductId: process.env.TOGETRIP_IOS_AD_REMOVAL_PRODUCT_ID || '',
+        androidProductId: process.env.TOGETRIP_ANDROID_AD_REMOVAL_PRODUCT_ID || '',
+        entitlementId: process.env.TOGETRIP_AD_REMOVAL_ENTITLEMENT_ID || '',
+        offeringId: process.env.TOGETRIP_AD_REMOVAL_OFFERING_ID || '',
+      } : { adRemovalReleaseApproved: false },
       ads: {
         mode,
         androidBannerId: units.android || null,

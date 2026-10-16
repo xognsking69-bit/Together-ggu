@@ -15,7 +15,7 @@ Base: main 0c3f9b96e404fb01b1d1768fe83581c556ce7072. Proposed changes are on PR 
 - Added guidance is translated for Korean, English, Japanese and simplified Chinese.
 
 ## Validation
-- 92 automated tests pass: 19 settlement, 21 travel data, 14 receipt lifecycle, 2 release identity and 36 existing invite/worker tests.
+- 116 automated tests pass: 19 settlement, 21 travel data, 14 receipt lifecycle, 2 release identity 36 existing invite/worker tests, 20 dormant monetization tests and 4 unreadable-receipt regressions.
 - New tests cover Korean/US date boundaries, year rollover, leap days, DST duration, historical payer/participant protection, unused person deletion, fresh-snapshot rechecks, custom amount parsing, rounding conservation and portable backup immutability.
 - TypeScript no-emit and iOS/Android/web Expo exports passed.
 - Exporting verifies JS bundling, not native signing or device behavior. Existing root-level ads configuration and web notification warnings are not resolved by this patch.
@@ -29,3 +29,6 @@ Base: main 0c3f9b96e404fb01b1d1768fe83581c556ce7072. Proposed changes are on PR 
 
 ## Delivery boundary
 Separate review branch only. No main merge, production deployment, native store upload, paid API usage, or live user-data modification. The source candidate is 3.28.29/iOS51/Android49 with matching app/package/visible identifiers. No signed native release build is created; verify native counters remain unused before building. Already uploaded binaries do not receive these changes.
+
+## Monetization preparation
+Receipt time-saving tools are the first product candidate; see RECEIPT-PRODUCT-PLAN.md. Unreadable amount/currency now releases free usage reservations. Ad-removal purchase/restore foundations remain disabled by default, without product configuration or live SDK calls. No receipt credit sales, prices, store products, paid services or native releases were activated. Native billing and receipt accuracy still require device/sandbox QA.

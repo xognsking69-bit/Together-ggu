@@ -17,6 +17,8 @@ import { portableBackupState } from "../backup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
+import {PremiumProvider} from "../components/premium-context";
+import PremiumSettings from "../components/premium-settings";
 import SharedInviteHelp from "../components/shared-invite-help";
 import AppHelp from "../components/app-help";
 import {LanguageProvider,useAppLanguage,LANGUAGES,translateUI} from "../components/language-context";
@@ -2289,6 +2291,7 @@ if (!activeTrip) return null;
             <Pressable onPress={()=>setTab("settle")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text localize style={[styles.bold,{color:theme.accent}]}>💸 정산</Text></Pressable>
             <Pressable onPress={()=>setTab("game")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text localize style={[styles.bold,{color:theme.accent}]}>🎮 미니게임</Text></Pressable>
           </View>
+          <PremiumSettings/>
           <Card title="🌐 언어" cardStyle={cardDecorStyle}>
             <Text localize style={styles.muted}>앱에서 사용할 언어를 선택해요.</Text>
             <View style={{gap:8,marginTop:12}}>
@@ -2924,7 +2927,7 @@ if (!activeTrip) return null;
  }
 
 export default function Index() {
-  return <AppearanceProvider><LanguageProvider><IndexContent /></LanguageProvider></AppearanceProvider>;
+  return <AppearanceProvider><LanguageProvider><PremiumProvider><IndexContent /></PremiumProvider></LanguageProvider></AppearanceProvider>;
 }
 
 function DatePickerModal({

@@ -18,7 +18,7 @@
 - New guidance supports Korean, English, Japanese and simplified Chinese.
 
 ## Validation / limits
-92 automated tests, TypeScript no-emit and platform JS exports are checked before the candidate is finalized. Native filesystem APIs are type-checked; file deletion ordering is tested using an injected fake remover/writer, not on a phone. The cloud browser could not reach the local QA server (connection refused); interactive browser QA was not completed. No physical device or emulator is available here.
+116 automated tests, TypeScript no-emit and platform JS exports are checked before the candidate is finalized. Native filesystem APIs are type-checked; file deletion ordering is tested using an injected fake remover/writer, not on a phone. The cloud browser could not reach the local QA server (connection refused); interactive browser QA was not completed. No physical device or emulator is available here.
 
 Required native acceptance checks:
 1. On both platforms, select/capture a test receipt, save an expense, restart the app and confirm the image can be read.
@@ -41,3 +41,6 @@ npm test
 npx tsc --noEmit
 npx expo export --platform all
 ```
+
+## Monetization preparation
+Receipt time-saving tools are the first product candidate; see RECEIPT-PRODUCT-PLAN.md. Unreadable amount/currency now releases free usage reservations. Ad-removal purchase/restore foundations remain disabled by default, without product configuration or live SDK calls. No receipt credit sales, prices, store products, paid services or native releases were activated. Native billing and receipt accuracy still require device/sandbox QA.
