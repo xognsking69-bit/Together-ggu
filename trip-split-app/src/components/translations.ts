@@ -2,6 +2,16 @@ import {HELP_TRANSLATIONS} from "./help-translations";
 // App-owned UI labels only. Never apply to travel names, people or entered content.
 export const DICTIONARY:Record<string,readonly [string,string,string]>={
 ...HELP_TRANSLATIONS,
+"동행인 삭제 불가":["Cannot remove companion", "同行者を削除できません", "无法删除同行者"],
+"이 동행인이 포함된 지출이 있어요. 과거 결제와 분담금을 보존하기 위해 삭제할 수 없어요. 지출 내역을 먼저 확인해주세요.":["This companion is referenced by expenses. Removal is blocked to preserve past payments and shares. Review the expenses first.", "この同行者を含む支出があります。過去の支払いと負担額を保護するため削除できません。支出履歴を確認してください。", "该同行者关联了费用。为保留历史付款和分摊金额，无法删除。请先检查费用记录。"],
+"사용자별 금액 지정":["Set individual amounts", "個別の金額を設定", "设置个人金额"],
+"선택한 통화 기준으로 입력해주세요. 사용자별 금액의 합계는 지출 금액과 같아야 해요.":["Enter amounts in the selected currency. Individual amounts must add up to the expense total.", "選択した通貨で入力してください。各自の金額の合計は支出額と一致する必要があります。", "请以所选币种输入。个人金额之和必须等于费用总额。"],
+"사용자별 금액을 모두 입력해주세요. 부담하지 않는 사람은 0을 입력해주세요.":["Enter every individual amount. Enter 0 for anyone who pays no share.", "全員の負担額を入力してください。負担しない人には0を入力してください。", "请输入每个人的金额。不承担费用的人请输入0。"],
+"사진 첨부 해제":["Detach photo", "写真の添付を解除", "取消照片附件"],
+"영수증 사진을 불러올 수 없어요. 원본 사진을 다시 선택해주세요. 지출 정보는 그대로 남아 있어요.":["The receipt photo is unavailable. Select the original photo again. Your expense details are unchanged.", "領収書の写真を読み込めません。元の写真を選び直してください。支出情報はそのまま残っています。", "无法加载收据照片。请重新选择原始照片。费用信息保持不变。"],
+"사진 첨부 해제는 원본 사진이나 서버 데이터 삭제가 아니에요. 영수증 사진은 JSON 백업에 포함되지 않아요.":["Detaching does not delete the original photo or server data. Receipt photos are not included in JSON backups.", "添付の解除は元の写真やサーバーデータの削除ではありません。領収書の写真はJSONバックアップに含まれません。", "取消附件不会删除原始照片或服务器数据。JSON备份不包含收据照片。"],
+"※ 프로필 사진과 지출 정보는 백업에 포함돼요. 영수증 사진과 기기 전용 사진 경로는 포함되지 않아요. 원본 사진은 따로 보관해주세요.":["Profile photos and expense details are included in backups. Receipt photos and device-specific image paths are excluded. Keep original photos separately.", "プロフィール写真と支出情報はバックアップに含まれます。領収書の写真と端末固有のパスは含まれません。元の写真は別途保管してください。", "备份包含头像和费用信息，不包含收据照片及设备专用照片路径。请单独保存原始照片。"],
+
 "정산 정보를 확인해주세요.":["Check settlement details.", "精算情報を確認してください。", "请检查结算信息。"],
 "결제자와 참여자, 사용자별 분담금의 합계가 지출 금액과 일치하는지 확인해주세요.":["Check the payer, participants, and that individual shares add up to the expense total.", "支払者、参加者、各自の負担額の合計が支出額と一致するか確認してください。", "请检查付款人、参与者以及个人分摊金额之和是否等于费用总额。"],
 "지출 내역의 결제자, 참여자와 사용자별 분담금을 확인한 뒤 다시 시도해주세요.":["Check each expense’s payer, participants and individual shares, then try again.", "各支出の支払者、参加者、各自の負担額を確認してから再試行してください。", "请检查费用记录中的付款人、参与者和个人分摊金额后重试。"],

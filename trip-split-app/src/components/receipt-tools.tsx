@@ -1,8 +1,8 @@
+import { SmoothText as Text } from "./smooth-text";
 import { CURRENCIES, type Currency } from "../currencies";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
-  Text,
   Pressable,
   StyleSheet,
   Platform,
@@ -128,6 +128,8 @@ export default function ReceiptTools({
   onDetected,
 }: Props) {
   const [analyzing, setAnalyzing] = useState(false);
+  const [unavailableUri, setUnavailableUri] = useState<string | null>(null);
+  const photoUnavailable = Boolean(receiptUri && unavailableUri === receiptUri);
   const [lastResult, setLastResult] = useState<ReceiptResult | null>(null);
   const [usage, setUsage] = useState<Usage>({ freeRemaining: -1 });
 
@@ -193,7 +195,7 @@ export default function ReceiptTools({
   }
 
   async function analyzeReceipt() {
-    if (!receiptUri || analyzing) return;
+    if (!receiptUri || photoUnavailable || analyzing) return;
 
     const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
     if (!endpoint) {
@@ -296,7 +298,8 @@ export default function ReceiptTools({
 
       {receiptUri ? (
         <View style={styles.previewWrap}>
-          <Image source={{ uri: receiptUri }} style={styles.preview} resizeMode="cover" />
+          <Image key={receiptUri} source={{ uri: receiptUri }} style={styles.preview} resizeMode="cover" onError={()=>setUnavailableUri(receiptUri)} onLoad={()=>setUnavailableUri(null)} />
+          {photoUnavailable && <Text localize style={styles.helper}>영수증 사진을 불러올 수 없어요. 원본 사진을 다시 선택해주세요. 지출 정보는 그대로 남아 있어요.</Text>}
           <Pressable
             onPress={() => {
               onReceiptUriChange(null);
@@ -304,7 +307,7 @@ export default function ReceiptTools({
             }}
             style={styles.removeButton}
           >
-            <Text style={styles.removeText}>사진 제거</Text>
+            <Text localize style={styles.removeText}>사진 첨부 해제</Text>
           </Pressable>
         </View>
       ) : (
@@ -314,6 +317,7 @@ export default function ReceiptTools({
         </View>
       )}
 
+      <Text localize style={styles.helper}>사진 첨부 해제는 원본 사진이나 서버 데이터 삭제가 아니에요. 영수증 사진은 JSON 백업에 포함되지 않아요.</Text>
       <View style={styles.usageRow}>
         <Text style={styles.usageText}>
           {usage.freeRemaining < 0 ? "사용량 불러오는 중" : `무료 분석 ${usage.freeRemaining}/5회 남음`}
@@ -330,12 +334,12 @@ export default function ReceiptTools({
       </View>
 
       <Pressable
-        disabled={!receiptUri || analyzing}
+        disabled={!receiptUri || photoUnavailable || analyzing}
         onPress={analyzeReceipt}
         style={[
           styles.analyzeButton,
           {backgroundColor:accent},
-          (!receiptUri || analyzing) && styles.disabled,
+          (!receiptUri || photoUnavailable || analyzing) && styles.disabled,
         ]}
       >
         <Text style={styles.analyzeText}>

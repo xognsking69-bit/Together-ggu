@@ -2,6 +2,15 @@ import type { Expense, Person } from "./types";
 
 export type Balance = { paid: number; owed: number; net: number };
 
+export function parseCustomShareInputs(inputs: Record<string,string>, rate: number): Record<string,number> {
+  if (!Number.isFinite(rate) || rate <= 0) throw new Error("Invalid exchange rate");
+  return Object.fromEntries(Object.entries(inputs).map(([id,text])=>{
+    const amount = Number(text);
+    if (!text.trim() || !Number.isFinite(amount) || amount < 0) throw new Error("Invalid custom share input");
+    return [id,amount*rate];
+  }));
+}
+
 // customShares are KRW amounts, including any unrounded currency conversion.
 // Round the combined total once, then distribute leftover won by fractional part.
 function expenseShares(expense: Expense, ids: string[], amount: number) {

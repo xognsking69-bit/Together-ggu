@@ -9,8 +9,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import TripCalendar, { type TripPlan } from "../components/trip-calendar";
 import GameZone from "../components/game-zone";
 import type { AppState, CheckItem, Expense, Person, Trip } from "../types";
-import { computeBalances, minimalTransfers } from "../settlement";
+import { computeBalances, minimalTransfers, parseCustomShareInputs } from "../settlement";
+import { localDateKey, parseLocalDate, calendarDayDiff } from "../dates";
+import { personHasExpenses, removeUnusedPerson } from "../people";
 import { loadState, saveState } from "../storage";
+import { portableBackupState } from "../backup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
@@ -110,7 +113,7 @@ const ME_ID = "me";
 const categories = ["식비", "카페", "교통", "숙박", "관광", "쇼핑", "기타"];
 const currencies = CURRENCIES;
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localDateKey;
 const won = (n:number) => `${Math.round(n || 0).toLocaleString("ko-KR")}원`;
 const hexToRgba = (hex:string, alpha:number) => {
   const clean = hex.replace("#","");
@@ -118,12 +121,8 @@ const hexToRgba = (hex:string, alpha:number) => {
   const r=(value>>16)&255, g=(value>>8)&255, b=value&255;
   return `rgba(${r},${g},${b},${alpha})`;
 };
-const parseYmd = (value:string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
-  const d = new Date(`${value}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-};
-const daysInclusive = (start:Date,end:Date) => Math.max(1, Math.floor((end.getTime()-start.getTime())/86400000)+1);
+const parseYmd = parseLocalDate;
+const daysInclusive = (start:Date,end:Date) => Math.max(1, calendarDayDiff(start,end)+1);
 
 function createTrip(name = "나", personId = ME_ID): Trip {
   return {
@@ -329,7 +328,7 @@ function IndexContent() {
   const [backgroundStyleId, setBackgroundStyleId] = useState<BackgroundStyleId>("theme");
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [receiptAnalysis, setReceiptAnalysis] = useState<ReceiptResult | null>(null);
-  const [receiptItemShares, setReceiptItemShares] = useState<Record<string, number> | null>(null);
+  const [receiptItemShares, setReceiptItemShares] = useState<Record<string, string> | null>(null);
   const [restoreText, setRestoreText] = useState("");
   const [showRestore, setShowRestore] = useState(false);
   const [plansByTrip, setPlansByTrip] = useState<Record<string, TripPlan[]>>({});
@@ -837,45 +836,21 @@ if (!activeTrip) return null;
   function removePerson(id:string) {
     if (id === state.profile.id) return;
 
-    const usedExpenses = activeTrip.expenses.filter(
-      e => e.payerId===id || e.participantIds.includes(id)
-    );
-
-    const applyDelete = () => {
-      updateTrip(trip=>({
-        ...trip,
-        people:trip.people.filter(p=>p.id!==id),
-        expenses:trip.expenses.map(e=>{
-          const nextParticipants=e.participantIds.filter(pid=>pid!==id);
-          return {
-            ...e,
-            payerId:e.payerId===id ? state.profile.id : e.payerId,
-            participantIds:nextParticipants.length ? nextParticipants : [state.profile.id],
-            customShares:e.customShares ? Object.fromEntries(Object.entries(e.customShares).filter(([pid])=>pid!==id)) : undefined
-          };
-        })
-      }));
-      setParticipants(ids=>{
-        const next=ids.filter(x=>x!==id);
-        return next.length ? next : [state.profile.id];
-      });
-      if (payerId===id) setPayerId(state.profile.id);
-      removeProfilePhoto(id);
-    };
-
-    if (usedExpenses.length) {
+    if (personHasExpenses(activeTrip, id)) {
       Alert.alert(
-        "동행인 삭제",
-        `이 동행인이 포함된 지출 ${usedExpenses.length}건이 있어요. 삭제하면 해당 지출에서는 빠지고, 결제자로 지정된 경우 '나'로 변경됩니다.`,
-        [
-          {text:"취소",style:"cancel"},
-          {text:"삭제",style:"destructive",onPress:applyDelete}
-        ]
+        translateUI("동행인 삭제 불가", language),
+        translateUI("이 동행인이 포함된 지출이 있어요. 과거 결제와 분담금을 보존하기 위해 삭제할 수 없어요. 지출 내역을 먼저 확인해주세요.", language)
       );
       return;
     }
-
-    applyDelete();
+    updateTrip(trip=>removeUnusedPerson(trip,id,state.profile.id));
+    setParticipants(ids=>{
+      const next=ids.filter(x=>x!==id);
+      return next.length ? next : [state.profile.id];
+    });
+    setReceiptItemShares(shares=>shares ? Object.fromEntries(Object.entries(shares).filter(([pid])=>pid!==id)) : null);
+    if (payerId===id) setPayerId(state.profile.id);
+    removeProfilePhoto(id);
   }
 
   function formatExchangeRate(value:number) {
@@ -937,6 +912,13 @@ if (!activeTrip) return null;
     if (!Number.isFinite(r) || r <= 0) return Alert.alert("환율을 확인해주세요.");
     if (!participants.length) return Alert.alert("함께 사용한 사람을 선택해주세요.");
 
+    let customShares: Record<string,number> | undefined;
+    try {
+      customShares = receiptItemShares ? parseCustomShareInputs(receiptItemShares,r) : undefined;
+    } catch {
+      Alert.alert(translateUI("정산 정보를 확인해주세요.",language),translateUI("사용자별 금액을 모두 입력해주세요. 부담하지 않는 사람은 0을 입력해주세요.",language));
+      return;
+    }
     const expense: Expense & {
       receiptUri?: string;
       receiptAnalysis?: ReceiptResult;
@@ -947,7 +929,7 @@ if (!activeTrip) return null;
       krwAmount:a*r, payerId, participantIds:participants,
       ...(receiptUri ? { receiptUri } : {}),
       ...(receiptAnalysis ? { receiptAnalysis } : {}),
-      ...(receiptItemShares ? { customShares:Object.fromEntries(Object.entries(receiptItemShares).map(([id,share])=>[id,share*r])) } : {})
+      ...(customShares ? { customShares } : {})
     };
 
     try {
@@ -979,7 +961,7 @@ if (!activeTrip) return null;
     setParticipants(e.participantIds);
     setReceiptUri(receiptExpense.receiptUri || null);
     setReceiptAnalysis(receiptExpense.receiptAnalysis || null);
-    setReceiptItemShares(e.customShares ? Object.fromEntries(Object.entries(e.customShares).map(([id,share])=>[id,share/e.rate])) : null);
+    setReceiptItemShares(e.customShares ? Object.fromEntries(Object.entries(e.customShares).map(([id,share])=>[id,String(share/e.rate)])) : null);
     setExpenseView("add");setTab("expense");
   }
 
@@ -1106,11 +1088,13 @@ if (!activeTrip) return null;
     if (!plan.reminder || !plan.time) return;
     const match=/^(\d{1,2}):(\d{2})$/.exec(plan.time.trim());
     if (!match) return;
-    const [year,month,day]=plan.date.split("-").map(Number);
+    const dayDate=parseLocalDate(plan.date);
+    if (!dayDate) return;
     const hour=Number(match[1]), minute=Number(match[2]);
-    const eventAt=new Date(year,month-1,day,hour,minute,0,0);
+    const eventAt=new Date(dayDate);
+    eventAt.setHours(hour,minute,0,0);
     const triggerAt=new Date(eventAt.getTime()-30*60*1000);
-    if (!year||!month||!day||hour>23||minute>59||triggerAt.getTime()<=Date.now()) return;
+    if (hour>23||minute>59||triggerAt.getTime()<=Date.now()) return;
     try {
       await cancelPlanReminder(plan.id);
       if (Platform.OS==="android") {
@@ -1234,7 +1218,8 @@ if (!activeTrip) return null;
       app: "Togetrip",
       version: `V${APP_VERSION}`,
       exportedAt: new Date().toISOString(),
-      state,
+      state: portableBackupState(state),
+      receiptImagesIncluded: false,
       appearance: {
         themeId,
         cardStyleId,
@@ -2056,7 +2041,7 @@ if (!activeTrip) return null;
             receiptUri={receiptUri}
             onReceiptUriChange={uri=>{
               setReceiptUri(uri);
-              if (!uri) { setReceiptAnalysis(null); setReceiptItemShares(null); }
+              if (!uri) setReceiptAnalysis(null);
             }}
             onDetected={result=>{
               setReceiptAnalysis(result);
@@ -2161,8 +2146,17 @@ if (!activeTrip) return null;
           {!!rateError && <Text style={styles.rateError}>{rateError}</Text>}
           <Text localize style={styles.label}>누가 결제했나요?</Text>
           <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={payerId===p.id} onPress={()=>setPayerId(p.id)}/>)}</View>
-          {receiptItemShares && <View>
-            <Text localize style={styles.muted}>사용자별 분담금이 적용되어 있어요. 금액이나 참여자를 바꾸려면 분담금을 확인해주세요.</Text>
+          {receiptItemShares ? <View>
+            <Text localize style={styles.label}>사용자별 금액 지정</Text>
+            <Text localize style={styles.muted}>선택한 통화 기준으로 입력해주세요. 사용자별 금액의 합계는 지출 금액과 같아야 해요.</Text>
+            {activeTrip.people.filter(p=>participants.includes(p.id)).map(p=><View key={p.id}>
+              <Text style={styles.label}>{p.name} · {currency}</Text>
+              <TextInput value={receiptItemShares[p.id] ?? ""} keyboardType="decimal-pad"
+                accessibilityLabel={p.name + " · " + currency}
+                placeholder="0" placeholderTextColor={appearanceColors.muted}
+                style={[styles.restoreInput,{minHeight:48,color:appearanceColors.text,backgroundColor:appearanceColors.input}]}
+                onChangeText={text=>setReceiptItemShares(shares=>({...shares,[p.id]:text}))}/>
+            </View>)}
             <Pressable onPress={()=>Alert.alert(
               translateUI("균등 분할로 변경", language),
               translateUI("저장된 사용자별 분담금을 해제할까요? 지출 저장을 눌러야 변경 내용이 적용됩니다.", language),
@@ -2171,9 +2165,15 @@ if (!activeTrip) return null;
             )} style={{paddingVertical:12}}>
               <Text localize style={[styles.bold,{color:theme.accent}]}>균등 분할로 변경</Text>
             </Pressable>
-          </View>}
+          </View> : <Pressable style={{paddingVertical:12}} onPress={()=>setReceiptItemShares(Object.fromEntries(participants.map(id=>[id,""])))}>
+            <Text localize style={[styles.bold,{color:theme.accent}]}>사용자별 금액 지정</Text>
+          </Pressable>}
           <Text localize style={styles.label}>누가 같이 사용했나요?</Text>
-          <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={participants.includes(p.id)} onPress={()=>setParticipants(ids=>ids.includes(p.id)?ids.filter(id=>id!==p.id):[...ids,p.id])}/>)}</View>
+          <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={participants.includes(p.id)} onPress={()=>{
+            const next=participants.includes(p.id)?participants.filter(id=>id!==p.id):[...participants,p.id];
+            setParticipants(next);
+            setReceiptItemShares(shares=>shares ? Object.fromEntries(next.map(id=>[id,shares[id] ?? ""])) : null);
+          }}/>)}</View>
           <Primary text={editingId?"수정 저장":"지출 저장"} onPress={saveExpense} full/>
           {editingId && <Pressable onPress={()=>{resetForm();setExpenseView("list");setTab("expense");}}><Text localize style={[styles.link,{textAlign:"center",marginTop:12,color:theme.accent}]}>수정 취소</Text></Pressable>}
         </Card>
@@ -2538,7 +2538,7 @@ if (!activeTrip) return null;
             )}
 
             <Text localize style={styles.backupNote}>
-              ※ 프로필 사진은 백업에 포함돼요. 영수증 사진 파일 자체는 아직 백업 대상이 아니며, 연결 정보만 보존돼요.
+              ※ 프로필 사진과 지출 정보는 백업에 포함돼요. 영수증 사진과 기기 전용 사진 경로는 포함되지 않아요. 원본 사진은 따로 보관해주세요.
             </Text>
           </ManageGroup>
 
