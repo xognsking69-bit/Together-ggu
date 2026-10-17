@@ -1,7 +1,7 @@
 {
   "name": "togetrip",
   "main": "expo-router/entry",
-  "version": "3.28.28",
+  "version": "3.28.29",
   "dependencies": {
     "@expo/ui": "~57.0.17",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -45,7 +45,12 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:worker": "node --test worker/*.test.mjs"
+    "test:worker": "node --test worker/*.test.mjs",
+    "test:settlement": "node --test scripts/settlement.test.mjs",
+    "test:travel-data": "node --test scripts/travel-data.test.mjs",
+    "test:receipt-lifecycle": "node --test scripts/receipt-lifecycle.test.mjs",
+    "test": "node --test scripts/*.test.mjs worker/*.test.mjs",
+    "test:monetization": "node --test scripts/ad-removal.test.mjs"
   },
   "private": true
 }

@@ -2,6 +2,36 @@ import type { Expense, Person } from "./types";
 
 export type Balance = { paid: number; owed: number; net: number };
 
+export function parseCustomShareInputs(inputs: Record<string,string>, rate: number): Record<string,number> {
+  if (!Number.isFinite(rate) || rate <= 0) throw new Error("Invalid exchange rate");
+  return Object.fromEntries(Object.entries(inputs).map(([id,text])=>{
+    const amount = Number(text);
+    if (!text.trim() || !Number.isFinite(amount) || amount < 0) throw new Error("Invalid custom share input");
+    return [id,amount*rate];
+  }));
+}
+
+// customShares are KRW amounts, including any unrounded currency conversion.
+// Round the combined total once, then distribute leftover won by fractional part.
+function expenseShares(expense: Expense, ids: string[], amount: number) {
+  if (expense.customShares == null) return splitInteger(amount, ids);
+  const entries = Object.entries(expense.customShares);
+  if (entries.some(([id, value]) => !ids.includes(id) || !Number.isFinite(value) || value < 0)) {
+    throw new Error("Invalid custom shares");
+  }
+  const values = ids.map(id => expense.customShares![id] ?? 0);
+  const sum = values.reduce((total, value) => total + value, 0);
+  if (Math.abs(sum - expense.krwAmount) > Math.max(1e-6, Math.abs(sum) * Number.EPSILON * 16)) {
+    throw new Error("Custom shares must match the expense total");
+  }
+  const shares = values.map(value => Math.floor(value));
+  const remainder = amount - shares.reduce((total, value) => total + value, 0);
+  const order = values.map((value, index) => ({ index, fraction: value - shares[index] }))
+    .sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+  for (let i = 0; i < remainder; i++) shares[order[i].index]++;
+  return Object.fromEntries(ids.map((id, index) => [id, shares[index]]));
+}
+
 export function splitInteger(total: number, ids: string[]) {
   if (!ids.length) return {} as Record<string, number>;
 
@@ -26,12 +56,18 @@ export function computeBalances(people: Person[], expenses: Expense[]) {
 
   expenses.forEach((expense) => {
     const payer = balances[expense.payerId];
-    if (!payer || !expense.participantIds.length) return;
+    const ids = [...new Set(expense.participantIds)];
+    if (!payer || !ids.length || ids.some(id => !balances[id])) {
+      throw new Error("Expense references missing people");
+    }
+    if (!Number.isFinite(expense.krwAmount) || expense.krwAmount < 0 ||
+        !Number.isSafeInteger(Math.round(expense.krwAmount))) {
+      throw new Error("Invalid expense amount");
+    }
 
     const amount = Math.round(expense.krwAmount);
+    const shares = expenseShares(expense, ids, amount);
     payer.paid += amount;
-
-    const shares = splitInteger(amount, expense.participantIds);
     Object.entries(shares).forEach(([id, share]) => {
       if (balances[id]) balances[id].owed += share;
     });

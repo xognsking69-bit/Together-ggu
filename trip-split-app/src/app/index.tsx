@@ -9,14 +9,19 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import TripCalendar, { type TripPlan } from "../components/trip-calendar";
 import GameZone from "../components/game-zone";
 import type { AppState, CheckItem, Expense, Person, Trip } from "../types";
-import { computeBalances, minimalTransfers } from "../settlement";
-import { loadState, saveState } from "../storage";
+import { computeBalances, minimalTransfers, parseCustomShareInputs } from "../settlement";
+import { localDateKey, parseLocalDate, calendarDayDiff } from "../dates";
+import { personHasExpenses, removeUnusedPerson } from "../people";
+import { loadState, saveState, protectReceiptDraft } from "../storage";
+import { portableBackupState } from "../backup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
+import {PremiumProvider} from "../components/premium-context";
+import PremiumSettings from "../components/premium-settings";
 import SharedInviteHelp from "../components/shared-invite-help";
 import AppHelp from "../components/app-help";
-import {LanguageProvider,useAppLanguage,LANGUAGES} from "../components/language-context";
+import {LanguageProvider,useAppLanguage,LANGUAGES,translateUI} from "../components/language-context";
 import SmoothPressable from "../components/smooth-pressable";
 import { SmoothText as Text, SmoothTextInput as TextInput } from "../components/smooth-text";
 import { AppearanceProvider, useAppAppearance, type AppearanceMode } from "../components/appearance-context";
@@ -39,7 +44,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.28";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.29";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -110,7 +115,7 @@ const ME_ID = "me";
 const categories = ["식비", "카페", "교통", "숙박", "관광", "쇼핑", "기타"];
 const currencies = CURRENCIES;
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localDateKey;
 const won = (n:number) => `${Math.round(n || 0).toLocaleString("ko-KR")}원`;
 const hexToRgba = (hex:string, alpha:number) => {
   const clean = hex.replace("#","");
@@ -118,12 +123,8 @@ const hexToRgba = (hex:string, alpha:number) => {
   const r=(value>>16)&255, g=(value>>8)&255, b=value&255;
   return `rgba(${r},${g},${b},${alpha})`;
 };
-const parseYmd = (value:string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
-  const d = new Date(`${value}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-};
-const daysInclusive = (start:Date,end:Date) => Math.max(1, Math.floor((end.getTime()-start.getTime())/86400000)+1);
+const parseYmd = parseLocalDate;
+const daysInclusive = (start:Date,end:Date) => Math.max(1, calendarDayDiff(start,end)+1);
 
 function createTrip(name = "나", personId = ME_ID): Trip {
   return {
@@ -192,7 +193,7 @@ function getStableIdentityId() {
       const id = `person-${makeId()}`;
       await AsyncStorage.setItem(IDENTITY_KEY, id);
       return id;
-    });
+    }).catch(error=>{stableIdentityPromise=null;throw error;});
   }
   return stableIdentityPromise;
 }
@@ -302,6 +303,8 @@ function IndexContent() {
   const navInset = isTablet ? Math.max(18, (width - 760) / 2) : isTiny ? 6 : 10;
   const [state, setState] = useState<AppState>(INITIAL);
   const [ready, setReady] = useState(false);
+  const [storageError, setStorageError] = useState(false);
+  const [photoCleanupPending, setPhotoCleanupPending] = useState(false);
   const [tab, setTab] = useState<Tab>("home");
   const [expenseView, setExpenseView] = useState<ExpenseView>("add");
   const [openManageSection, setOpenManageSection] = useState<ManageSection | null>("checklist");
@@ -327,9 +330,10 @@ function IndexContent() {
   const [themeId, setThemeId] = useState<ThemeId>("lavender");
   const [cardStyleId, setCardStyleId] = useState<CardStyleId>("soft");
   const [backgroundStyleId, setBackgroundStyleId] = useState<BackgroundStyleId>("theme");
+  const [receiptPreparing, setReceiptPreparing] = useState(false);
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [receiptAnalysis, setReceiptAnalysis] = useState<ReceiptResult | null>(null);
-  const [receiptItemShares, setReceiptItemShares] = useState<Record<string, number> | null>(null);
+  const [receiptItemShares, setReceiptItemShares] = useState<Record<string, string> | null>(null);
   const [restoreText, setRestoreText] = useState("");
   const [showRestore, setShowRestore] = useState(false);
   const [plansByTrip, setPlansByTrip] = useState<Record<string, TripPlan[]>>({});
@@ -364,8 +368,9 @@ function IndexContent() {
   const lastSharedFingerprintRef = useRef<Record<string,string>>({});
   const sharedRoomsRef = useRef<Record<string, SharedRoomMeta>>({});
 
-  useEffect(() => {
-    Promise.all([loadState(), getStableIdentityId()]).then(([saved, identityId]) => {
+  function initializeState() {
+    setStorageError(false);
+    return Promise.all([loadState(), getStableIdentityId()]).then(([saved, identityId]) => {
       const next = applyStableIdentity(migrate(saved), identityId);
       setState(next);
       const trip = next.trips.find(t => t.id === next.activeTripId) || next.trips[0];
@@ -375,10 +380,20 @@ function IndexContent() {
         setDate(trip.start || today());
       }
       setReady(true);
-    });
-  }, []);
+    }).catch(()=>setStorageError(true));
+  }
+  useEffect(() => { void initializeState(); }, []);
 
-  useEffect(() => { if (ready) saveState(state); }, [state, ready]);
+  function retryStateSave() {
+    void saveState(state).then(result=>{
+      setStorageError(false);
+      setPhotoCleanupPending(result.photoCleanupPending);
+    }).catch(()=>setStorageError(true));
+  }
+  useEffect(() => { if (ready) retryStateSave(); }, [state, ready]);
+  useEffect(() => {
+    void protectReceiptDraft(receiptUri).then(result=>setPhotoCleanupPending(result.photoCleanupPending));
+  }, [receiptUri]);
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY)
@@ -606,7 +621,14 @@ function IndexContent() {
     borderWidth: isDark ? StyleSheet.hairlineWidth : 0,
   };
   const total = useMemo(() => activeTrip?.expenses.reduce((s,e)=>s+e.krwAmount,0) || 0, [activeTrip]);
-  const balances = useMemo(() => computeBalances(activeTrip?.people || [], activeTrip?.expenses || []), [activeTrip]);
+  const settlement = useMemo(() => {
+    try {
+      return { balances: computeBalances(activeTrip?.people || [], activeTrip?.expenses || []), error: false };
+    } catch {
+      return { balances: {} as ReturnType<typeof computeBalances>, error: true };
+    }
+  }, [activeTrip]);
+  const balances = settlement.balances;
   const transfers = useMemo(() => minimalTransfers(balances), [balances]);
   const categoryAnalytics = useMemo(() => {
     const sums = Object.fromEntries(categories.map(c=>[c,0])) as Record<string,number>;
@@ -830,45 +852,21 @@ if (!activeTrip) return null;
   function removePerson(id:string) {
     if (id === state.profile.id) return;
 
-    const usedExpenses = activeTrip.expenses.filter(
-      e => e.payerId===id || e.participantIds.includes(id)
-    );
-
-    const applyDelete = () => {
-      updateTrip(trip=>({
-        ...trip,
-        people:trip.people.filter(p=>p.id!==id),
-        expenses:trip.expenses.map(e=>{
-          const nextParticipants=e.participantIds.filter(pid=>pid!==id);
-          return {
-            ...e,
-            payerId:e.payerId===id ? state.profile.id : e.payerId,
-            participantIds:nextParticipants.length ? nextParticipants : [state.profile.id],
-            customShares:e.customShares ? Object.fromEntries(Object.entries(e.customShares).filter(([pid])=>pid!==id)) : undefined
-          };
-        })
-      }));
-      setParticipants(ids=>{
-        const next=ids.filter(x=>x!==id);
-        return next.length ? next : [state.profile.id];
-      });
-      if (payerId===id) setPayerId(state.profile.id);
-      removeProfilePhoto(id);
-    };
-
-    if (usedExpenses.length) {
+    if (personHasExpenses(activeTrip, id)) {
       Alert.alert(
-        "동행인 삭제",
-        `이 동행인이 포함된 지출 ${usedExpenses.length}건이 있어요. 삭제하면 해당 지출에서는 빠지고, 결제자로 지정된 경우 '나'로 변경됩니다.`,
-        [
-          {text:"취소",style:"cancel"},
-          {text:"삭제",style:"destructive",onPress:applyDelete}
-        ]
+        translateUI("동행인 삭제 불가", language),
+        translateUI("이 동행인이 포함된 지출이 있어요. 과거 결제와 분담금을 보존하기 위해 삭제할 수 없어요. 지출 내역을 먼저 확인해주세요.", language)
       );
       return;
     }
-
-    applyDelete();
+    updateTrip(trip=>removeUnusedPerson(trip,id,state.profile.id));
+    setParticipants(ids=>{
+      const next=ids.filter(x=>x!==id);
+      return next.length ? next : [state.profile.id];
+    });
+    setReceiptItemShares(shares=>shares ? Object.fromEntries(Object.entries(shares).filter(([pid])=>pid!==id)) : null);
+    if (payerId===id) setPayerId(state.profile.id);
+    removeProfilePhoto(id);
   }
 
   function formatExchangeRate(value:number) {
@@ -924,12 +922,20 @@ if (!activeTrip) return null;
   }
 
   function saveExpense() {
+    if(receiptPreparing) return Alert.alert(translateUI("영수증 사진 보관 중…",language),translateUI("사진 보관이 끝난 뒤 지출을 저장해주세요.",language));
     if (currency !== "KRW" && rateMode === "auto" && (rateLoading || rateError)) return Alert.alert("환율을 확인해주세요.", "환율 조회가 끝난 뒤 저장하거나 직접 환율을 입력해주세요.");
     const a = Number(amount), r = currency === "KRW" ? 1 : Number(rate);
     if (!Number.isFinite(a) || a <= 0) return Alert.alert("금액을 확인해주세요.");
     if (!Number.isFinite(r) || r <= 0) return Alert.alert("환율을 확인해주세요.");
     if (!participants.length) return Alert.alert("함께 사용한 사람을 선택해주세요.");
 
+    let customShares: Record<string,number> | undefined;
+    try {
+      customShares = receiptItemShares ? parseCustomShareInputs(receiptItemShares,r) : undefined;
+    } catch {
+      Alert.alert(translateUI("정산 정보를 확인해주세요.",language),translateUI("사용자별 금액을 모두 입력해주세요. 부담하지 않는 사람은 0을 입력해주세요.",language));
+      return;
+    }
     const expense: Expense & {
       receiptUri?: string;
       receiptAnalysis?: ReceiptResult;
@@ -938,10 +944,17 @@ if (!activeTrip) return null;
       title:title.trim() || category,
       category, date:date || today(), amount:a, currency, rate:r,
       krwAmount:a*r, payerId, participantIds:participants,
-      ...(receiptUri ? { receiptUri } : {}),
+      ...(receiptUri && Platform.OS !== "web" ? { receiptUri } : {}),
       ...(receiptAnalysis ? { receiptAnalysis } : {}),
-      ...(receiptItemShares ? { customShares:Object.fromEntries(Object.entries(receiptItemShares).map(([id,share])=>[id,share*r])) } : {})
+      ...(customShares ? { customShares } : {})
     };
+
+    try {
+      computeBalances(activeTrip.people, [expense]);
+    } catch {
+      Alert.alert(translateUI("정산 정보를 확인해주세요.", language), translateUI("결제자와 참여자, 사용자별 분담금의 합계가 지출 금액과 일치하는지 확인해주세요.", language));
+      return;
+    }
 
     updateTrip(trip=>({
       ...trip,
@@ -965,7 +978,7 @@ if (!activeTrip) return null;
     setParticipants(e.participantIds);
     setReceiptUri(receiptExpense.receiptUri || null);
     setReceiptAnalysis(receiptExpense.receiptAnalysis || null);
-    setReceiptItemShares(e.customShares ? Object.fromEntries(Object.entries(e.customShares).map(([id,share])=>[id,share/e.rate])) : null);
+    setReceiptItemShares(e.customShares ? Object.fromEntries(Object.entries(e.customShares).map(([id,share])=>[id,String(share/e.rate)])) : null);
     setExpenseView("add");setTab("expense");
   }
 
@@ -1092,11 +1105,13 @@ if (!activeTrip) return null;
     if (!plan.reminder || !plan.time) return;
     const match=/^(\d{1,2}):(\d{2})$/.exec(plan.time.trim());
     if (!match) return;
-    const [year,month,day]=plan.date.split("-").map(Number);
+    const dayDate=parseLocalDate(plan.date);
+    if (!dayDate) return;
     const hour=Number(match[1]), minute=Number(match[2]);
-    const eventAt=new Date(year,month-1,day,hour,minute,0,0);
+    const eventAt=new Date(dayDate);
+    eventAt.setHours(hour,minute,0,0);
     const triggerAt=new Date(eventAt.getTime()-30*60*1000);
-    if (!year||!month||!day||hour>23||minute>59||triggerAt.getTime()<=Date.now()) return;
+    if (hour>23||minute>59||triggerAt.getTime()<=Date.now()) return;
     try {
       await cancelPlanReminder(plan.id);
       if (Platform.OS==="android") {
@@ -1220,7 +1235,8 @@ if (!activeTrip) return null;
       app: "Togetrip",
       version: `V${APP_VERSION}`,
       exportedAt: new Date().toISOString(),
-      state,
+      state: portableBackupState(state),
+      receiptImagesIncluded: false,
       appearance: {
         themeId,
         cardStyleId,
@@ -1696,6 +1712,10 @@ if (!activeTrip) return null;
   }
 
   async function shareSettlement() {
+    if (settlement.error) {
+      Alert.alert(translateUI("정산 정보를 확인해주세요.", language), translateUI("지출 내역의 결제자, 참여자와 사용자별 분담금을 확인한 뒤 다시 시도해주세요.", language));
+      return;
+    }
     const names = Object.fromEntries(activeTrip.people.map(p=>[p.id,p.name]));
     const lines = transfers.length
       ? transfers.map(t=>`${names[t.from]} → ${names[t.to]} ${won(t.amount)}`)
@@ -1710,12 +1730,19 @@ if (!activeTrip) return null;
     }
   }
 
-  if (!ready) return <SafeAreaView style={[styles.safe,{backgroundColor:theme.bg}]}><View style={styles.center}><Text localize>불러오는 중...</Text></View></SafeAreaView>;
+  if (!ready) return <SafeAreaView style={[styles.safe,{backgroundColor:screenBackground}]}><View style={styles.center}>
+    <Text localize>{storageError?"저장된 여행을 불러오지 못했어요. 기존 데이터는 덮어쓰지 않았어요.":"불러오는 중..."}</Text>
+    {storageError && <Primary text="불러오기 재시도" onPress={()=>{void initializeState();}} full/>}
+  </View></SafeAreaView>;
 
   return (
     <SafeAreaView edges={["top","left","right"]} style={[styles.safe,{backgroundColor:screenBackground}]}>
       <MotionBackdrop accent={theme.accent} accentSoft={uiAccentSoft} />
       <ScrollView keyboardShouldPersistTaps="handled" removeClippedSubviews={Platform.OS==="android"} contentContainerStyle={[styles.content,{paddingBottom:112+safeInsets.bottom,paddingHorizontal:horizontalPadding,maxWidth:contentMaxWidth,width:"100%",alignSelf:"center"}]}>
+        {(storageError || photoCleanupPending) && <Card cardStyle={cardDecorStyle} title={storageError?"기기 저장 실패":"영수증 사본 정리 필요"}>
+          <Text localize style={styles.danger}>{storageError?"변경 내용을 기기에 저장하지 못했어요. 앱을 닫기 전에 다시 저장해주세요.":"사용하지 않는 영수증 사본 일부를 지우지 못했어요. 다시 시도해주세요."}</Text>
+          <Primary text="저장 및 사본 정리 재시도" onPress={retryStateSave} full/>
+        </Card>}
         <Animated.View style={{
           width:"100%",
           opacity: screenMotion,
@@ -2032,13 +2059,15 @@ if (!activeTrip) return null;
             </Pressable>
           </View>
           {expenseView==="add" && <>
-          <ReceiptTools
+          <ReceiptTools key={`${activeTrip.id}:${editingId || "new"}`}
             accent={theme.accent}
             accentSoft={uiAccentSoft}
             receiptUri={receiptUri}
+            onPreparingChange={setReceiptPreparing}
             onReceiptUriChange={uri=>{
+              void protectReceiptDraft(uri).then(result=>setPhotoCleanupPending(result.photoCleanupPending));
               setReceiptUri(uri);
-              if (!uri) { setReceiptAnalysis(null); setReceiptItemShares(null); }
+              if (!uri) setReceiptAnalysis(null);
             }}
             onDetected={result=>{
               setReceiptAnalysis(result);
@@ -2143,8 +2172,34 @@ if (!activeTrip) return null;
           {!!rateError && <Text style={styles.rateError}>{rateError}</Text>}
           <Text localize style={styles.label}>누가 결제했나요?</Text>
           <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={payerId===p.id} onPress={()=>setPayerId(p.id)}/>)}</View>
+          {receiptItemShares ? <View>
+            <Text localize style={styles.label}>사용자별 금액 지정</Text>
+            <Text localize style={styles.muted}>선택한 통화 기준으로 입력해주세요. 사용자별 금액의 합계는 지출 금액과 같아야 해요.</Text>
+            {activeTrip.people.filter(p=>participants.includes(p.id)).map(p=><View key={p.id}>
+              <Text style={styles.label}>{p.name} · {currency}</Text>
+              <TextInput value={receiptItemShares[p.id] ?? ""} keyboardType="decimal-pad"
+                accessibilityLabel={p.name + " · " + currency}
+                placeholder="0" placeholderTextColor={appearanceColors.muted}
+                style={[styles.restoreInput,{minHeight:48,color:appearanceColors.text,backgroundColor:appearanceColors.input}]}
+                onChangeText={text=>setReceiptItemShares(shares=>({...shares,[p.id]:text}))}/>
+            </View>)}
+            <Pressable onPress={()=>Alert.alert(
+              translateUI("균등 분할로 변경", language),
+              translateUI("저장된 사용자별 분담금을 해제할까요? 지출 저장을 눌러야 변경 내용이 적용됩니다.", language),
+              [{text:translateUI("취소",language),style:"cancel"},
+               {text:translateUI("균등 분할로 변경",language),onPress:()=>setReceiptItemShares(null)}]
+            )} style={{paddingVertical:12}}>
+              <Text localize style={[styles.bold,{color:theme.accent}]}>균등 분할로 변경</Text>
+            </Pressable>
+          </View> : <Pressable style={{paddingVertical:12}} onPress={()=>setReceiptItemShares(Object.fromEntries(participants.map(id=>[id,""])))}>
+            <Text localize style={[styles.bold,{color:theme.accent}]}>사용자별 금액 지정</Text>
+          </Pressable>}
           <Text localize style={styles.label}>누가 같이 사용했나요?</Text>
-          <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={participants.includes(p.id)} onPress={()=>setParticipants(ids=>ids.includes(p.id)?ids.filter(id=>id!==p.id):[...ids,p.id])}/>)}</View>
+          <View style={styles.chips}>{activeTrip.people.map(p=><Chip key={p.id} text={p.id===state.profile.id?`나 · ${p.name}`:p.name} selected={participants.includes(p.id)} onPress={()=>{
+            const next=participants.includes(p.id)?participants.filter(id=>id!==p.id):[...participants,p.id];
+            setParticipants(next);
+            setReceiptItemShares(shares=>shares ? Object.fromEntries(next.map(id=>[id,shares[id] ?? ""])) : null);
+          }}/>)}</View>
           <Primary text={editingId?"수정 저장":"지출 저장"} onPress={saveExpense} full/>
           {editingId && <Pressable onPress={()=>{resetForm();setExpenseView("list");setTab("expense");}}><Text localize style={[styles.link,{textAlign:"center",marginTop:12,color:theme.accent}]}>수정 취소</Text></Pressable>}
         </Card>
@@ -2236,6 +2291,7 @@ if (!activeTrip) return null;
             <Pressable onPress={()=>setTab("settle")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text localize style={[styles.bold,{color:theme.accent}]}>💸 정산</Text></Pressable>
             <Pressable onPress={()=>setTab("game")} style={[styles.togetripMoreButton,{backgroundColor:uiAccentSoft}]}><Text localize style={[styles.bold,{color:theme.accent}]}>🎮 미니게임</Text></Pressable>
           </View>
+          <PremiumSettings/>
           <Card title="🌐 언어" cardStyle={cardDecorStyle}>
             <Text localize style={styles.muted}>앱에서 사용할 언어를 선택해요.</Text>
             <View style={{gap:8,marginTop:12}}>
@@ -2509,7 +2565,7 @@ if (!activeTrip) return null;
             )}
 
             <Text localize style={styles.backupNote}>
-              ※ 프로필 사진은 백업에 포함돼요. 영수증 사진 파일 자체는 아직 백업 대상이 아니며, 연결 정보만 보존돼요.
+              ※ 프로필 사진과 지출 정보는 백업에 포함돼요. 영수증 사진과 기기 전용 사진 경로는 포함되지 않아요. 원본 사진은 따로 보관해주세요.
             </Text>
           </ManageGroup>
 
@@ -2591,6 +2647,9 @@ if (!activeTrip) return null;
             {tripSummaryTopCategoryAmount>0 && <Text style={[styles.analyticsFootnote,isDark&&{color:appearanceColors.muted}]}>가장 많이 쓴 카테고리 · {tripSummaryTopCategory} {won(tripSummaryTopCategoryAmount)}</Text>}
           </Card>
 
+          {settlement.error ? <Card cardStyle={cardDecorStyle} title="정산 정보를 확인해주세요.">
+            <Text localize style={styles.danger}>지출 내역의 결제자, 참여자와 사용자별 분담금을 확인한 뒤 다시 시도해주세요.</Text>
+          </Card> : <>
           <Card cardStyle={cardDecorStyle} title="사람별 정산">
             {activeTrip.people.map(p=>{
               const b=balances[p.id]||{paid:0,owed:0,net:0};
@@ -2625,6 +2684,7 @@ if (!activeTrip) return null;
             <Primary text="정산 결과 공유" onPress={shareSettlement} full/>
             {settlementDoneCount>0 && <Pressable onPress={resetSettlementDone} style={{alignSelf:"center",padding:10}}><Text localize style={styles.muted}>완료 체크 초기화</Text></Pressable>}
           </Card>
+          </>}
         </>}
         </Animated.View>
       </ScrollView>
@@ -2867,7 +2927,7 @@ if (!activeTrip) return null;
  }
 
 export default function Index() {
-  return <AppearanceProvider><LanguageProvider><IndexContent /></LanguageProvider></AppearanceProvider>;
+  return <AppearanceProvider><LanguageProvider><PremiumProvider><IndexContent /></PremiumProvider></LanguageProvider></AppearanceProvider>;
 }
 
 function DatePickerModal({

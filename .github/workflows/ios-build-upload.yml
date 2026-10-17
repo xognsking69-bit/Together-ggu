@@ -6,12 +6,12 @@ on:
       expected_version:
         description: App version to build and upload
         required: true
-        default: '3.28.25'
+        default: '3.28.29'
         type: string
       expected_build_number:
         description: iOS build number to verify
         required: true
-        default: '47'
+        default: '51'
         type: string
 
 permissions:

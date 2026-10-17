@@ -192,3 +192,23 @@ for (const currency of ["KRW", "JPY", "USD", "EUR", "GBP", "CNY", "HKD", "TWD", 
     assert.equal((await response.json()).currency, currency);
   });
 }
+
+for (const invalid of [{}, { amount: null, currency: "KRW" }, { amount: 0, currency: "KRW" }, { amount: 100, currency: null }]) {
+  test(`unusable receipt does not consume allowance: ${JSON.stringify(invalid)}`, async () => {
+    const env = makeEnv({ RECEIPT_AI_PROVIDER: "cloudflare", AI: {
+      async run() { return { answer: JSON.stringify(invalid) }; }
+    } });
+    const {data: session} = await createSession(env);
+    const form = new FormData();
+    form.append("receipt", new Blob([new Uint8Array([1])], {type:"image/png"}), "receipt.png");
+    const response = await worker.fetch(new Request("https://worker.test/receipt/analyze", {
+      method:"POST", headers:{Authorization:`Bearer ${session.token}`}, body:form
+    }), env);
+    assert.equal(response.status,422);
+    assert.equal((await response.json()).code,"RECEIPT_UNREADABLE");
+    const usage = await worker.fetch(new Request("https://worker.test/receipt/usage", {
+      headers:{Authorization:`Bearer ${session.token}`}
+    }), env);
+    assert.equal((await usage.json()).freeRemaining,5);
+  });
+}

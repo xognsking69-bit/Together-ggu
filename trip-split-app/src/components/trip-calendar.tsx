@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import type { Expense, Person } from "../types";
+import { localDateKey, parseLocalDate, calendarDayDiff } from "../dates";
 
 export type TripPlan = {
   id: string;
@@ -46,9 +47,8 @@ function keyOf(year: number, month: number, day: number) {
 
 function dayDiff(from?: string, to?: string) {
   if (!from || !to) return null;
-  const a = new Date(`${from}T12:00:00`).getTime();
-  const b = new Date(`${to}T12:00:00`).getTime();
-  return Math.floor((b-a)/86400000);
+  const a = parseLocalDate(from), b = parseLocalDate(to);
+  return a && b ? calendarDayDiff(a,b) : null;
 }
 
 function planIcon(type:TripPlan["type"]) {
@@ -89,7 +89,7 @@ export default function TripCalendar({
   );
 
   const [selectedDate, setSelectedDate] = useState(
-    initialDate || new Date().toISOString().slice(0, 10)
+    initialDate || localDateKey()
   );
 
   useEffect(()=>{
