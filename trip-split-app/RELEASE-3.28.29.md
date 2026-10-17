@@ -18,7 +18,7 @@
 - New guidance supports Korean, English, Japanese and simplified Chinese.
 
 ## Validation / limits
-116 automated tests, TypeScript no-emit and platform JS exports are checked before the candidate is finalized. Native filesystem APIs are type-checked; file deletion ordering is tested using an injected fake remover/writer, not on a phone. The cloud browser could not reach the local QA server (connection refused); interactive browser QA was not completed. No physical device or emulator is available here.
+132 automated tests, TypeScript no-emit and platform JS exports are checked before the candidate is finalized. Native filesystem APIs are type-checked; file deletion ordering is tested using an injected fake remover/writer, not on a phone. The cloud browser could not reach the local QA server (connection refused); interactive browser QA was not completed. No physical device or emulator is available here.
 
 Required native acceptance checks:
 1. On both platforms, select/capture a test receipt, save an expense, restart the app and confirm the image can be read.
@@ -44,3 +44,6 @@ npx expo export --platform all
 
 ## Monetization preparation
 Receipt time-saving tools are the first product candidate; see RECEIPT-PRODUCT-PLAN.md. Unreadable amount/currency now releases free usage reservations. Ad-removal purchase/restore foundations remain disabled by default, without product configuration or live SDK calls. No receipt credit sales, prices, store products, paid services or native releases were activated. Native billing and receipt accuracy still require device/sandbox QA.
+
+## Paid receipt foundation (not activated)
+Added a permanent credit ledger and authenticated, product/environment-bound purchase/refund webhook routes. Sixteen new tests cover duplicate grants, concurrent reservation, refund order, debt and user isolation using a transactional fake storage adapter. Cloudflare runtime integration, purchase UI, recovery and paid analysis orchestration remain pending; see worker/RECEIPT-SALES-SETUP.md. No store or paid service configuration was changed.

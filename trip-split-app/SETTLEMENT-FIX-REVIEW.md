@@ -15,7 +15,7 @@ Base: main 0c3f9b96e404fb01b1d1768fe83581c556ce7072. Proposed changes are on PR 
 - Added guidance is translated for Korean, English, Japanese and simplified Chinese.
 
 ## Validation
-- 116 automated tests pass: 19 settlement, 21 travel data, 14 receipt lifecycle, 2 release identity 36 existing invite/worker tests, 20 dormant monetization tests and 4 unreadable-receipt regressions.
+- 132 automated tests pass: 19 settlement, 21 travel data, 14 receipt lifecycle, 2 release identity 36 existing invite/worker tests, 20 dormant monetization tests and 4 unreadable-receipt regressions.
 - New tests cover Korean/US date boundaries, year rollover, leap days, DST duration, historical payer/participant protection, unused person deletion, fresh-snapshot rechecks, custom amount parsing, rounding conservation and portable backup immutability.
 - TypeScript no-emit and iOS/Android/web Expo exports passed.
 - Exporting verifies JS bundling, not native signing or device behavior. Existing root-level ads configuration and web notification warnings are not resolved by this patch.
@@ -32,3 +32,6 @@ Separate review branch only. No main merge, production deployment, native store 
 
 ## Monetization preparation
 Receipt time-saving tools are the first product candidate; see RECEIPT-PRODUCT-PLAN.md. Unreadable amount/currency now releases free usage reservations. Ad-removal purchase/restore foundations remain disabled by default, without product configuration or live SDK calls. No receipt credit sales, prices, store products, paid services or native releases were activated. Native billing and receipt accuracy still require device/sandbox QA.
+
+## Paid receipt foundation (not activated)
+Added a permanent credit ledger and authenticated, product/environment-bound purchase/refund webhook routes. Sixteen new tests cover duplicate grants, concurrent reservation, refund order, debt and user isolation using a transactional fake storage adapter. Cloudflare runtime integration, purchase UI, recovery and paid analysis orchestration remain pending; see worker/RECEIPT-SALES-SETUP.md. No store or paid service configuration was changed.

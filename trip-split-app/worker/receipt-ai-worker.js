@@ -1,3 +1,5 @@
+import { receiptCreditRoute } from "./receipt-credit-routes.js";
+export { ReceiptCreditLedger } from "./receipt-credit-ledger.js";
 /** Togetrip receipt AI worker. Guest identity and usage limits are enforced server-side. */
 const FREE_ANALYSES_PER_GUEST = 5;
 const MAX_NEW_GUESTS_PER_IP_PER_DAY = 5;
@@ -15,6 +17,12 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders() });
+    try {
+      const creditResponse = await receiptCreditRoute(request, env, authenticate);
+      if (creditResponse) return creditResponse;
+    } catch {
+      return json({ error: "Credit service is temporarily unavailable" }, 503);
+    }
 
     if (url.pathname === "/receipt/guest/session" && request.method === "POST") {
       if (!env.GUEST_TOKEN_SECRET || env.GUEST_TOKEN_SECRET.length < 32) {
