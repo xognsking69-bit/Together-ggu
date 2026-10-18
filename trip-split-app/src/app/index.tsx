@@ -17,6 +17,8 @@ import { portableBackupState } from "../backup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
+import RewardedVideo from "../components/rewarded-video";
+import {bannerPlacement} from "../ads/policy";
 import {PremiumProvider} from "../components/premium-context";
 import PremiumSettings from "../components/premium-settings";
 import SharedInviteHelp from "../components/shared-invite-help";
@@ -44,7 +46,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.29";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.30";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -2011,7 +2013,6 @@ if (!activeTrip) return null;
               );
             })}
           </Card>
-          <HomeBannerAd />
         </>}
 
         {tab==="schedule" && <>
@@ -2687,6 +2688,8 @@ if (!activeTrip) return null;
           </>}
         </>}
         </Animated.View>
+        {tab==="manage" && <RewardedVideo/>}
+        {bannerPlacement(tab,expenseView) && <HomeBannerAd/>}
       </ScrollView>
 
       <Modal

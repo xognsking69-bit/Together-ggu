@@ -27,6 +27,10 @@ module.exports = () => {
     throw new Error('Live ads require valid Android/iOS AdMob App IDs and banner ad unit IDs.');
   }
 
+  for (const [key,banner] of [['EXPO_PUBLIC_ADMOB_ANDROID_REWARDED_ID',units.android],['EXPO_PUBLIC_ADMOB_IOS_REWARDED_ID',units.ios]]) {
+    const rewarded=process.env[key];
+    if(mode==='live' && rewarded && (!UNIT_ID_PATTERN.test(rewarded)||rewarded===banner)) throw new Error('Rewarded ads require a separate valid rewarded unit ID.');
+  }
   return {
     ...expo,
     plugins: [
@@ -54,6 +58,8 @@ module.exports = () => {
         mode,
         androidBannerId: units.android || null,
         iosBannerId: units.ios || null,
+        androidRewardedId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_REWARDED_ID || null,
+        iosRewardedId: process.env.EXPO_PUBLIC_ADMOB_IOS_REWARDED_ID || null,
       },
     },
   };

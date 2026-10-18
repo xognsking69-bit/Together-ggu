@@ -1,9 +1,11 @@
+import {initializeAds} from '../ads/initialize.native';
 import {useAppLanguage,translateUI} from './language-context';
+import {useBannerPause} from '../ads/banner-pause';
 import {usePremium} from './premium-context';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, View, Pressable, Text, Alert } from 'react-native';
 import Constants from 'expo-constants';
-import mobileAds, { AdsConsent, AdsConsentPrivacyOptionsRequirementStatus, BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import  { AdsConsent, AdsConsentPrivacyOptionsRequirementStatus, BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
 type AdConfig = {
   mode?: 'off' | 'test' | 'live';
@@ -19,7 +21,8 @@ const unitId = config.mode === 'test'
 
 export default function HomeBannerAd() {
   const {showAds}=usePremium();
-  return showAds ? <AdSupportedBanner/> : <AdPrivacySettings/>;
+  const pause=useBannerPause();
+  return showAds && pause.ready && !pause.paused ? <AdSupportedBanner/> : <AdPrivacySettings/>;
 }
 function AdPrivacySettings() {
   const {language}=useAppLanguage();
@@ -36,6 +39,7 @@ function AdSupportedBanner() {
   const {language}=useAppLanguage();
   const mountedRef=useRef(true);
   const [canShow, setCanShow] = useState(false);
+  const [slotWidth,setSlotWidth] = useState(0);
   const [privacyRequired, setPrivacyRequired] = useState(false);
   const [adRevision, setAdRevision] = useState(0);
 
@@ -56,7 +60,7 @@ function AdSupportedBanner() {
         if (mounted) setPrivacyRequired(consent.privacyOptionsRequirementStatus === AdsConsentPrivacyOptionsRequirementStatus.REQUIRED);
         if (!consent.canRequestAds) return;
         if (!mounted) return;
-        await mobileAds().initialize();
+        await initializeAds();
         if (mounted) setCanShow(true);
       } catch (error) {
         console.warn('Unable to prepare ads:', error);
@@ -73,7 +77,7 @@ function AdSupportedBanner() {
       setCanShow(false);
       setPrivacyRequired(consent.privacyOptionsRequirementStatus === AdsConsentPrivacyOptionsRequirementStatus.REQUIRED);
       if (consent.canRequestAds) {
-        await mobileAds().initialize();
+        await initializeAds();
         setAdRevision(value => value + 1);
         setCanShow(true);
       }
@@ -84,8 +88,9 @@ function AdSupportedBanner() {
 
   if (!unitId || (!canShow && !privacyRequired)) return null;
   return (
-    <View style={{ alignItems: 'center', marginVertical: 14 }}>
-      {canShow && <BannerAd key={adRevision} unitId={unitId} size={BannerAdSize.BANNER} requestOptions={{ requestNonPersonalizedAdsOnly: true }} />}
+    <View onLayout={event=>setSlotWidth(event.nativeEvent.layout.width)} accessibilityLabel={translateUI('광고',language)} style={{ alignItems: 'center', marginVertical: 28, minHeight:70 }}>
+      {canShow && slotWidth>=320 && <Text style={{fontSize:10,color:'#64748B',marginBottom:6}}>{translateUI('광고',language)}</Text>}
+      {canShow && slotWidth>=320 && <BannerAd key={adRevision} unitId={unitId} size={BannerAdSize.BANNER} requestOptions={{ requestNonPersonalizedAdsOnly: true }} />}
       {privacyRequired && (
         <Pressable accessibilityRole="button" onPress={changePrivacyOptions} style={{ padding: 12 }}>
           <Text style={{ color: '#208AEF' }}>{translateUI("광고 개인정보 설정",language)}</Text>

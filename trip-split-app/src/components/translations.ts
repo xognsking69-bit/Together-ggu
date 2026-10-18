@@ -2,6 +2,14 @@ import {HELP_TRANSLATIONS} from "./help-translations";
 // App-owned UI labels only. Never apply to travel names, people or entered content.
 export const DICTIONARY:Record<string,readonly [string,string,string]>={
 ...HELP_TRANSLATIONS,
+"광고":["Ad", "広告", "广告"],
+"선택형 보상 광고":["Optional rewarded ad", "任意のリワード広告", "自愿奖励广告"],
+"광고 시청을 완료하면 30분간 배너가 숨겨져요. 영수증 이용권은 지급되지 않아요.":["Complete an ad to hide banners for 30 minutes. No receipt credits are awarded.", "広告の視聴完了で30分間バナーを非表示にします。領収書の利用権は付与されません。", "完整观看广告可隐藏横幅30分钟。不赠送收据识别次数。"],
+"배너 숨김 보상이 적용 중이에요":["Your banner-free reward is active", "バナー非表示の特典が適用中です", "隐藏横幅奖励已生效"],
+"광고 준비 중…":["Preparing ad…", "広告を準備中…", "正在准备广告…"],
+"광고 보고 30분 배너 숨기기":["Watch an ad to hide banners for 30 minutes", "広告を見て30分間バナーを非表示", "观看广告，隐藏横幅30分钟"],
+"광고를 불러오지 못했어요":["Could not load the ad", "広告を読み込めませんでした", "无法加载广告"],
+"잠시 후 다시 시도해주세요. 기본 기능은 그대로 사용할 수 있어요.":["Try again later. Basic features remain available.", "後でもう一度お試しください。基本機能はそのまま使えます。", "请稍后重试。基本功能仍可正常使用。"],
 "광고 제거":["Remove ads", "広告を削除", "移除广告"],
 "1회 구매로 앱 배너 광고를 제거해요. 영수증 AI 이용권은 포함되지 않아요.":["Remove app banner ads with a one-time purchase. Receipt AI credits are not included.", "1回の購入でアプリのバナー広告を削除します。領収書AIの利用権は含まれません。", "一次性购买即可移除应用横幅广告。不包含收据AI使用次数。"],
 "광고 제거가 적용되어 있어요.":["Ad removal is active.", "広告の削除が適用されています。", "已启用广告移除。"],
