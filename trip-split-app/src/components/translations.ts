@@ -2,6 +2,17 @@ import {HELP_TRANSLATIONS} from "./help-translations";
 // App-owned UI labels only. Never apply to travel names, people or entered content.
 export const DICTIONARY:Record<string,readonly [string,string,string]>={
 ...HELP_TRANSLATIONS,
+"영수증 AI 10회권":["Receipt AI · 10 scans", "レシートAI 10回パック", "收据AI 10次包"],
+"사진 촬영·선택 후 영수증 정보를 자동 입력하는 분석 이용권이에요. 촬영 자체는 무료예요.":["Use scans to fill expenses from receipt photos. Taking photos is free.", "撮影・選択したレシートから自動入力する解析パックです。撮影自体は無料です。", "拍摄或选择收据后自动填写信息的识别次数包。拍照本身免费。"],
+"10회권 구매":["Buy 10 scans", "10回パックを購入", "购买10次包"],
+"10회권 구매 · 판매 준비 중":["10 scans · Coming soon", "10回パック · 販売準備中", "10次包 · 即将推出"],
+"10회권 판매를 준비하고 있어요. 준비가 끝나면 여기서 구매할 수 있어요. 현재 결제되지 않아요.":["The 10-scan pack is coming soon. You will be able to buy it here. You cannot be charged yet.", "10回パックは販売準備中です。準備完了後、ここで購入できます。現在は課金されません。", "10次包正在准备中，准备完成后可在此购买。目前不会扣款。"],
+"구매 확인 중":["Confirming purchase", "購入確認中", "正在确认购买"],
+"스토어 연결 중…":["Connecting to store…", "ストアに接続中…", "正在连接商店…"],
+"구매할 수 없어요":["Purchase unavailable", "購入できません", "暂时无法购买"],
+"결제 승인 후 서버에서 10회 이용권을 확인해요. 확인 전에는 다시 구매하지 마세요.":["The server is confirming your 10 scans after payment approval. Please do not purchase again while waiting.", "支払承認後、サーバーで10回分を確認します。確認中は再購入しないでください。", "付款批准后服务器将确认10次额度。确认前请勿再次购买。"],
+"스토어 또는 이용권 연결을 확인하지 못했어요. 잠시 후 다시 시도해주세요.":["Could not verify the store or scan credits. Please try again later.", "ストアまたは利用券を確認できませんでした。しばらくしてから再試行してください。", "无法确认商店或次数包，请稍后重试。"],
+
 "광고":["Ad", "広告", "广告"],
 "선택형 보상 광고":["Optional rewarded ad", "任意のリワード広告", "自愿奖励广告"],
 "광고 시청을 완료하면 30분간 배너가 숨겨져요. 영수증 이용권은 지급되지 않아요.":["Complete an ad to hide banners for 30 minutes. No receipt credits are awarded.", "広告の視聴完了で30分間バナーを非表示にします。領収書の利用権は付与されません。", "完整观看广告可隐藏横幅30分钟。不赠送收据识别次数。"],

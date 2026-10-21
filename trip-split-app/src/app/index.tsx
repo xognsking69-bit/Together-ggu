@@ -17,7 +17,6 @@ import { portableBackupState } from "../backup";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ReceiptTools, { type ReceiptResult } from "../components/receipt-tools";
 import HomeBannerAd from "../components/home-banner-ad";
-import RewardedVideo from "../components/rewarded-video";
 import {bannerPlacement} from "../ads/policy";
 import {PremiumProvider} from "../components/premium-context";
 import PremiumSettings from "../components/premium-settings";
@@ -46,7 +45,7 @@ Notifications.setNotificationHandler({
 
 
 const Pressable = SmoothPressable;
-const APP_VERSION = Constants.expoConfig?.version || "3.28.30";
+const APP_VERSION = Constants.expoConfig?.version || "3.28.31";
 
 function MotionBackdrop({ accent, accentSoft }: { accent: string; accentSoft: string }) {
   const driftA = useRef(new Animated.Value(0)).current;
@@ -2050,13 +2049,13 @@ if (!activeTrip) return null;
               onPress={()=>setExpenseView("add")}
               style={[styles.segmentButton,expenseView==="add"&&{backgroundColor:theme.accent}]}
             >
-              <Text localize style={[styles.segmentText,expenseView==="add"&&styles.segmentTextActive]}>＋ 지출 추가</Text>
+              <Text localize style={[styles.segmentText,isDark&&{color:appearanceColors.text},expenseView==="add"&&styles.segmentTextActive]}>＋ 지출 추가</Text>
             </Pressable>
             <Pressable
               onPress={()=>setExpenseView("list")}
               style={[styles.segmentButton,expenseView==="list"&&{backgroundColor:theme.accent}]}
             >
-              <Text localize style={[styles.segmentText,expenseView==="list"&&styles.segmentTextActive]}>🧾 지출 내역</Text>
+              <Text localize style={[styles.segmentText,isDark&&{color:appearanceColors.text},expenseView==="list"&&styles.segmentTextActive]}>🧾 지출 내역</Text>
             </Pressable>
           </View>
           {expenseView==="add" && <>
@@ -2688,7 +2687,6 @@ if (!activeTrip) return null;
           </>}
         </>}
         </Animated.View>
-        {tab==="manage" && <RewardedVideo/>}
         {bannerPlacement(tab,expenseView) && <HomeBannerAd/>}
       </ScrollView>
 
@@ -3822,13 +3820,15 @@ const styles=StyleSheet.create({
   },
   segmentButton:{
     flex:1,
-    minHeight:42,
+    minHeight:56,
+    paddingHorizontal:8,
+    paddingVertical:12,
     borderRadius:14,
     alignItems:"center",
     justifyContent:"center"
   },
   segmentText:{
-    fontSize:12,
+    fontSize:16,
     fontWeight:"900",
     color:"#6E728D"
   },

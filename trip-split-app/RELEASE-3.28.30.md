@@ -32,3 +32,16 @@ EXPO_PUBLIC_ADMOB_ANDROID_REWARDED_ID / EXPO_PUBLIC_ADMOB_IOS_REWARDED_ID.
 자동 테스트 135개 통과: 기존132 + 광고 배치/보상 시간/운영 광고ID 정책3. 타입 검사 통과. 실제 Google 테스트 영상의 로드/중도종료/정상보상/배경이동/30분복원과 양 플랫폼 스토어 샌드박스는 미검증.
 
 이전 3.28.29 Android build d0e9c8aa-252b-4f53-81a2-de51b73eca1f 및 iOS build 4c1b55cd-c01d-44f2-9857-f60f9668dfb1은 사용자 변경 요청 후 취소 완료. 스토어 제출 없음. 본 3.28.30은 소스 후보이며 실제 광고 ID 연결 완료. 새 서명 빌드 및 기기 검증이 필요하다.
+
+## 2026-10-21 달력 보완 (미배포)
+- 사용자 Android 사진에서 요일은 7개지만 날짜가 6개씩 줄바꿈되어 10월 3일·10일·17일 등이 다음 행으로 밀리는 현상 확인.
+- 홈 달력의 퍼센트 폭 + 자동 줄바꿈을 제거하고, 6개 주 행마다 7개 동일 flex 칸을 배치. 확대된 일차·아이콘은 칸 내부에서 줄바꿈.
+- TypeScript 검사와 git diff --check 통과. S26 실기기 재확인·서명 빌드·배포는 미완료.
+
+## 2026-10-22 빌드 및 업로드 기록
+- 대상 소스 커밋: 098491b4ac02c580bb3de88645dcddebf50e934b (달력 주별 7칸 수정 포함).
+- iOS 3.28.30(52): EAS b025d114-c528-430e-9204-818ac6d0a677 빌드 FINISHED.
+- iOS 제출 f85d611c-f4b8-478d-922b-07d3e14afd08: FINISHED. App Store Connect 업로드 완료이며 공개 심사/출시 완료를 뜻하지 않음.
+- Android 3.28.30(50): EAS 1ad73870-1dd8-4dc5-a29f-6d160f4ec52d 빌드 FINISHED. AAB: https://expo.dev/artifacts/eas/7fVdJHji8lzrDlHz3NmIf8lWwS_y5xgxBPhJtGpfRXs.aab
+- Android 자동 제출: Google 서비스 계정 키가 없어 실패. Play Console 브라우저 열기도 자동 승인 검토에서 요청 주소 play.google.com과 판정 주소 google.play 불일치로 차단. Google 업로드 완료 아님.
+- 이번 재검사 기록: 자동 테스트 135개 통과, TypeScript 검사 통과. S26 실기기 확인 미완료.

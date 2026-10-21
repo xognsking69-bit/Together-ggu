@@ -1,6 +1,5 @@
 import {initializeAds} from '../ads/initialize.native';
 import {useAppLanguage,translateUI} from './language-context';
-import {useBannerPause} from '../ads/banner-pause';
 import {usePremium} from './premium-context';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, View, Pressable, Text, Alert } from 'react-native';
@@ -21,8 +20,7 @@ const unitId = config.mode === 'test'
 
 export default function HomeBannerAd() {
   const {showAds}=usePremium();
-  const pause=useBannerPause();
-  return showAds && pause.ready && !pause.paused ? <AdSupportedBanner/> : <AdPrivacySettings/>;
+  return showAds ? <AdSupportedBanner/> : <AdPrivacySettings/>;
 }
 function AdPrivacySettings() {
   const {language}=useAppLanguage();

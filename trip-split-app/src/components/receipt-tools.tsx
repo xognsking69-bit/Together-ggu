@@ -1,3 +1,5 @@
+import {useAppAppearance} from "./appearance-context";
+import ReceiptPackPurchase from "./receipt-pack-purchase";
 import { prepareReceiptPhoto, removeOwnedReceiptCopy } from "../receipt-files";
 import { useAppLanguage, translateUI } from "./language-context";
 import { SmoothText as Text } from "./smooth-text";
@@ -132,6 +134,7 @@ export default function ReceiptTools({
   onDetected,
 }: Props) {
   const {language}=useAppLanguage();
+  const {isDark,colors}=useAppAppearance();
   const mounted=useRef(true);
   const selectionGeneration=useRef(0);
   const [preparing, setPreparing]=useState(false);
@@ -270,7 +273,7 @@ export default function ReceiptTools({
       if (!response.ok) {
         if (response.status === 402 || raw?.code === "AI_CREDITS_REQUIRED") {
           await refreshUsage().catch(() => {});
-          Alert.alert("무료 분석을 모두 사용했어요", "현재 무료 체험은 5회까지 제공됩니다.");
+          Alert.alert("무료 분석을 모두 사용했어요", "현재 무료 체험은 5회까지 제공됩니다. 10회권 판매 준비 상태는 구매 안내에서 확인해주세요.");
           return;
         }
         if (response.status === 429 || raw?.code === "SERVICE_DAILY_LIMIT_REACHED") {
@@ -312,11 +315,11 @@ export default function ReceiptTools({
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card,{backgroundColor:colors.surface,borderColor:colors.border}]}>
       <View style={styles.titleRow}>
         <View style={styles.flex}>
-          <Text style={styles.title}>🧾 영수증 AI 자동 입력</Text>
-          <Text style={styles.helper}>
+          <Text style={[styles.title,{color:colors.text}]}>🧾 영수증 AI 자동 입력</Text>
+          <Text style={[styles.helper,{color:colors.muted}]}>
             영수증을 촬영하거나 사진을 고르면 가게명·날짜·총액·통화·카테고리를 자동으로 채워요.
           </Text>
         </View>
@@ -328,7 +331,7 @@ export default function ReceiptTools({
       {receiptUri ? (
         <View style={styles.previewWrap}>
           <Image key={receiptUri} source={{ uri: receiptUri }} style={styles.preview} resizeMode="cover" onError={()=>setUnavailableUri(receiptUri)} onLoad={()=>setUnavailableUri(null)} />
-          {photoUnavailable && <Text localize style={styles.helper}>영수증 사진을 불러올 수 없어요. 원본 사진을 다시 선택해주세요. 지출 정보는 그대로 남아 있어요.</Text>}
+          {photoUnavailable && <Text localize style={[styles.helper,{color:colors.muted}]}>영수증 사진을 불러올 수 없어요. 원본 사진을 다시 선택해주세요. 지출 정보는 그대로 남아 있어요.</Text>}
           <Pressable
             disabled={preparing || analyzing}
             onPress={() => {
@@ -342,29 +345,36 @@ export default function ReceiptTools({
           </Pressable>
         </View>
       ) : (
-        <View style={[styles.emptyPreview,{backgroundColor:accentSoft}]}>
+        <View style={[styles.emptyPreview,{backgroundColor:isDark?colors.surface2:accentSoft}]}>
           <Text style={styles.emptyEmoji}>📷</Text>
-          <Text style={styles.emptyText}>영수증 사진을 추가해주세요</Text>
+          <Text style={[styles.emptyText,isDark&&{color:colors.text}]}>영수증 사진을 추가해주세요</Text>
         </View>
       )}
 
-      {preparing && <Text localize style={styles.helper}>영수증 사진 보관 중…</Text>}
-      <Text localize style={styles.helper}>{Platform.OS === "web"
+      {preparing && <Text localize style={[styles.helper,{color:colors.muted}]}>영수증 사진 보관 중…</Text>}
+      <Text localize style={[styles.helper,{color:colors.muted}]}>{Platform.OS === "web"
         ? "웹에서는 영수증 사진을 장기 보관하지 않아요. 원본 사진은 따로 보관해주세요."
         : "새로 선택한 사진은 앱 전용 폴더에 사본으로 보관해요. 첨부를 해제하고 저장하거나 지출을 삭제하면 기기 저장 성공 후 사용하지 않는 앱 사본을 정리해요. 원본 사진과 서버 데이터는 삭제하지 않아요."}</Text>
-      <Text localize style={styles.helper}>영수증 사진은 JSON 백업에 포함되지 않아요. 원본 사진은 따로 보관해주세요.</Text>
+      <Text localize style={[styles.helper,{color:colors.muted}]}>영수증 사진은 JSON 백업에 포함되지 않아요. 원본 사진은 따로 보관해주세요.</Text>
       <View style={styles.usageRow}>
-        <Text style={styles.usageText}>
+        <Text style={[styles.usageText,isDark&&{color:colors.text}]}>
           {usage.freeRemaining < 0 ? "사용량 불러오는 중" : `무료 분석 ${usage.freeRemaining}/5회 남음`}
         </Text>
       </View>
 
+      <ReceiptPackPurchase getSession={async()=>{
+        const endpoint=process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
+        if(!endpoint) throw new Error("영수증 AI에 연결할 수 없어요.");
+        const session=await getGuestSession(endpoint,Platform.OS==="web"?fetch:expoFetch);
+        return {endpoint,...session};
+      }}/>
+
       <View style={styles.actions}>
-        <Pressable disabled={preparing || analyzing} onPress={takePhoto} style={styles.secondaryButton}>
-          <Text style={styles.secondaryText}>📸 촬영</Text>
+        <Pressable disabled={preparing || analyzing} onPress={takePhoto} style={[styles.secondaryButton,{backgroundColor:colors.surface2}]}>
+          <Text style={[styles.secondaryText,{color:colors.text}]}>📸 촬영</Text>
         </Pressable>
-        <Pressable disabled={preparing || analyzing} onPress={pickPhoto} style={styles.secondaryButton}>
-          <Text style={styles.secondaryText}>🖼 사진 선택</Text>
+        <Pressable disabled={preparing || analyzing} onPress={pickPhoto} style={[styles.secondaryButton,{backgroundColor:colors.surface2}]}>
+          <Text style={[styles.secondaryText,{color:colors.text}]}>🖼 사진 선택</Text>
         </Pressable>
       </View>
 
@@ -374,28 +384,28 @@ export default function ReceiptTools({
         style={[
           styles.analyzeButton,
           {backgroundColor:accent},
-          (!receiptUri || photoUnavailable || analyzing || preparing) && styles.disabled,
+          (!receiptUri || photoUnavailable || analyzing || preparing) && {backgroundColor:colors.surface2,borderWidth:1,borderColor:colors.border},
         ]}
       >
-        <Text style={styles.analyzeText}>
+        <Text style={[styles.analyzeText,(!receiptUri || photoUnavailable || analyzing || preparing)&&{color:colors.text}]}>
           {analyzing ? "AI가 영수증을 읽는 중..." : "✨ AI로 자동 입력"}
         </Text>
       </Pressable>
 
       {lastResult && (
-        <View style={[styles.resultBox,{backgroundColor:accentSoft}]}>
+        <View style={[styles.resultBox,{backgroundColor:isDark?colors.surface2:accentSoft}]}>
           <View style={styles.resultHeader}>
             <Text style={[styles.resultTitle,{color:accent}]}>AI 인식 결과</Text>
             {lastResult.confidence != null && (
-              <Text style={styles.confidence}>
+              <Text style={[styles.confidence,{color:colors.muted}]}>
                 신뢰도 {Math.round(lastResult.confidence * 100)}%
               </Text>
             )}
           </View>
-          <Text style={styles.resultText}>
+          <Text style={[styles.resultText,{color:colors.text}]}>
             {lastResult.merchant || "가게명 미확인"}
           </Text>
-          <Text style={styles.resultSub}>
+          <Text style={[styles.resultSub,{color:colors.text}]}>
             {lastResult.date || "날짜 미확인"} ·{" "}
             {lastResult.amount != null
               ? lastResult.amount.toLocaleString()
@@ -403,7 +413,7 @@ export default function ReceiptTools({
             {lastResult.currency || ""}
             {lastResult.category ? ` · ${lastResult.category}` : ""}
           </Text>
-          <Text style={styles.confirmText}>
+          <Text style={[styles.confirmText,{color:colors.muted}]}>
             아래 지출 입력칸에 자동 반영됐어요. 저장하기 전에 금액과 날짜를 한 번 확인해주세요.
           </Text>
         </View>
@@ -415,6 +425,7 @@ export default function ReceiptTools({
 const styles = StyleSheet.create({
   card:{
     backgroundColor:"#FFFFFF",
+    borderWidth:1,
     borderRadius:22,
     padding:17,
     marginBottom:13,

@@ -27,10 +27,6 @@ module.exports = () => {
     throw new Error('Live ads require valid Android/iOS AdMob App IDs and banner ad unit IDs.');
   }
 
-  for (const [key,banner] of [['EXPO_PUBLIC_ADMOB_ANDROID_REWARDED_ID',units.android],['EXPO_PUBLIC_ADMOB_IOS_REWARDED_ID',units.ios]]) {
-    const rewarded=process.env[key];
-    if(mode==='live' && rewarded && (!UNIT_ID_PATTERN.test(rewarded)||rewarded===banner)) throw new Error('Rewarded ads require a separate valid rewarded unit ID.');
-  }
   return {
     ...expo,
     plugins: [
@@ -54,12 +50,19 @@ module.exports = () => {
         entitlementId: process.env.TOGETRIP_AD_REMOVAL_ENTITLEMENT_ID || '',
         offeringId: process.env.TOGETRIP_AD_REMOVAL_OFFERING_ID || '',
       } : { adRemovalReleaseApproved: false },
+      receiptPurchases: {
+        enabled: false, // Enable only after paid analysis, recovery and store sandbox verification.
+        iosPublicKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY || "",
+        androidPublicKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || "",
+        iosProductId: process.env.TOGETRIP_IOS_RECEIPT_PACK10_ID || "",
+        androidProductId: process.env.TOGETRIP_ANDROID_RECEIPT_PACK10_ID || "",
+      },
       ads: {
         mode,
         androidBannerId: units.android || null,
         iosBannerId: units.ios || null,
-        androidRewardedId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_REWARDED_ID || null,
-        iosRewardedId: process.env.EXPO_PUBLIC_ADMOB_IOS_REWARDED_ID || null,
+        androidRewardedId: null,
+        iosRewardedId: null,
       },
     },
   };
