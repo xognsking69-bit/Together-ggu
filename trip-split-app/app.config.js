@@ -51,7 +51,8 @@ module.exports = () => {
         offeringId: process.env.TOGETRIP_AD_REMOVAL_OFFERING_ID || '',
       } : { adRemovalReleaseApproved: false },
       receiptPurchases: {
-        enabled: false, // Enable only after paid analysis, recovery and store sandbox verification.
+        enabled: process.env.TOGETRIP_RECEIPT_SANDBOX === "true", // Sandbox builds only; production remains disabled.
+        environment: "SANDBOX",
         iosPublicKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY || "",
         androidPublicKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || "",
         iosProductId: process.env.TOGETRIP_IOS_RECEIPT_PACK10_ID || "",

@@ -1,3 +1,4 @@
+import {paidConfigured,ledgerCall,sealResult,openResult,recoveryRoute} from "./receipt-paid.js";
 import { receiptCreditRoute } from "./receipt-credit-routes.js";
 export { ReceiptCreditLedger } from "./receipt-credit-ledger.js";
 /** Togetrip receipt AI worker. Guest identity and usage limits are enforced server-side. */
@@ -18,10 +19,23 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders() });
     try {
+      const recoveryResponse=await recoveryRoute(request,env,{authenticate:r=>authenticate(r,env),session:sub=>createGuestSession(env,sub),limit:async ip=>consumeLimit(env,"recovery-ip",await hmacText(env.GUEST_TOKEN_SECRET,ip),utcDay(),10)});
+      if(recoveryResponse)return recoveryResponse;
+      if(url.pathname==="/receipt/analysis/result"&&request.method==="GET") {
+        const identity=await authenticate(request,env);
+        if(!identity)return json({error:"SESSION_REQUIRED"},401);
+        if(!paidConfigured(env))return json({error:"SALES_UNAVAILABLE"},503);
+        const requestId=url.searchParams.get("id");
+        if(!requestId||!/^receipt-[0-9a-f-]{36}$/i.test(requestId))return json({error:"REQUEST"},400);
+        const status=await ledgerCall(env,"/status",{userId:identity.sub,requestId});
+        if(status.status==="reserved"&&Date.now()-(status.createdAt||Date.now())>15*60*1000){await ledgerCall(env,"/release",{userId:identity.sub,requestId});return json({code:"ANALYSIS_RELEASED",status:"released"},409);}
+        if(status.status==="completed"&&status.sealedResult)return json(await openResult(env,identity.sub,requestId,status.sealedResult));
+        return json({code:status.status==="completed"?"RESULT_EXPIRED":"ANALYSIS_PENDING",status:status.status},status.status==="completed"?410:409);
+      }
       const creditResponse = await receiptCreditRoute(request, env, authenticate);
       if (creditResponse) return creditResponse;
-    } catch {
-      return json({ error: "Credit service is temporarily unavailable" }, 503);
+    } catch(error) {
+      return json({ error: "Credit service is temporarily unavailable" }, error?.status===404?404:503);
     }
 
     if (url.pathname === "/receipt/guest/session" && request.method === "POST") {
@@ -75,6 +89,9 @@ export default {
     let dailyReservation;
     let globalStub;
     let globalReservation;
+    let paidReservation;
+    let paidCommitted=false;
+    const paidRequestId=request.headers.get("X-Receipt-Request-ID");
     try {
       const form = await request.formData();
       const receipt = form.get("receipt");
@@ -83,13 +100,33 @@ export default {
       const mimeType = (receipt.type || "").toLowerCase();
       if (!ALLOWED_IMAGE_TYPES.has(mimeType)) return json({ error: "Use a JPEG, PNG, or WebP image" }, 415);
 
+      const bytes = new Uint8Array(await receipt.arrayBuffer());
+      const imageHash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",bytes)),b=>b.toString(16).padStart(2,"0")).join("");
+      const canUsePaid=paidConfigured(env)&&request.headers.get("X-Receipt-Use-Paid")==="true"&&Boolean(paidRequestId&&/^receipt-[0-9a-f-]{36}$/i.test(paidRequestId));
+      if(canUsePaid) {
+        try {
+          const previous=await ledgerCall(env,"/status",{userId:appUserId,requestId:paidRequestId});
+          // Reusing a paid request with different bytes must never return another image's result.
+          const duplicate=await ledgerCall(env,"/reserve",{userId:appUserId,requestId:paidRequestId,imageHash});
+          if(previous.status==="completed"&&previous.sealedResult)return json(await openResult(env,appUserId,paidRequestId,previous.sealedResult));
+          if(previous.status==="reserved"&&Date.now()-(previous.createdAt||Date.now())>15*60*1000) {
+            await ledgerCall(env,"/release",{userId:appUserId,requestId:paidRequestId});
+            return json({code:"ANALYSIS_RELEASED",error:"중단된 분석 횟수를 돌려드렸어요. 다시 시도해주세요."},409);
+          }
+          return json({code:duplicate.status==="completed"?"RESULT_EXPIRED":duplicate.status==="released"?"ANALYSIS_RELEASED":"ANALYSIS_PENDING",error:"기존 분석 처리 상태를 확인해주세요."},duplicate.status==="completed"?410:409);
+        }catch(error){if(error.message!=="JOB_NOT_FOUND")throw error;}
+      }
       const freeId = env.RECEIPT_USAGE.idFromName(`guest:${appUserId}`);
       usageStub = env.RECEIPT_USAGE.get(freeId);
       freeReservation = crypto.randomUUID();
       const freeResponse = await reserve(usageStub, freeReservation, FREE_ANALYSES_PER_GUEST);
       const freeResult = await freeResponse.json();
       if (!freeResult.allowed) {
-        return json({ code: "AI_CREDITS_REQUIRED", error: "무료 분석 5회를 모두 사용했습니다.", freeRemaining: 0 }, 402);
+        if(!canUsePaid)return json({ code: "AI_CREDITS_REQUIRED", error: "무료 분석 5회를 모두 사용했습니다.", freeRemaining: 0 }, 402);
+        freeReservation=undefined;
+        const reservation=await ledgerCall(env,"/reserve",{userId:appUserId,requestId:paidRequestId,imageHash});
+        if(reservation.duplicate)return json({code:"ANALYSIS_PENDING",error:"기존 분석을 처리하고 있어요."},409);
+        paidReservation=paidRequestId;
       }
 
       const day = utcDay();
@@ -97,7 +134,8 @@ export default {
       dailyReservation = crypto.randomUUID();
       const dailyResponse = await reserve(dailyStub, dailyReservation, positiveLimit(env.MAX_ANALYSES_PER_GUEST_PER_DAY, DEFAULT_MAX_ANALYSES_PER_GUEST_PER_DAY), "daily", day);
       if (!(await dailyResponse.json()).allowed) {
-        await releaseReservation(usageStub, freeReservation); freeReservation = undefined;
+        if(freeReservation){await releaseReservation(usageStub, freeReservation); freeReservation = undefined;}
+        if(paidReservation){await ledgerCall(env,"/release",{userId:appUserId,requestId:paidReservation});paidReservation=undefined;}
         return json({ code: "DAILY_LIMIT_REACHED", error: "오늘 영수증 AI 이용 한도에 도달했습니다. 내일 다시 이용해주세요." }, 429);
       }
 
@@ -105,29 +143,39 @@ export default {
       globalReservation = crypto.randomUUID();
       const globalResponse = await reserve(globalStub, globalReservation, Math.min(positiveLimit(env.MAX_ANALYSES_GLOBAL_PER_DAY, DEFAULT_MAX_ANALYSES_GLOBAL_PER_DAY), DEFAULT_MAX_ANALYSES_GLOBAL_PER_DAY), "daily", day);
       if (!(await globalResponse.json()).allowed) {
-        await releaseReservation(usageStub, freeReservation); freeReservation = undefined;
-        await releaseReservation(dailyStub, dailyReservation); dailyReservation = undefined;
+        if(freeReservation){await releaseReservation(usageStub, freeReservation); freeReservation = undefined;}
+        if(paidReservation){await ledgerCall(env,"/release",{userId:appUserId,requestId:paidReservation});paidReservation=undefined;}
+        await releaseReservation(dailyStub, dailyReservation,"daily"); dailyReservation = undefined;
         return json({ code: "SERVICE_DAILY_LIMIT_REACHED", error: "오늘 AI 처리 한도에 도달했습니다. 내일 다시 이용해주세요." }, 503);
       }
 
-      const bytes = new Uint8Array(await receipt.arrayBuffer());
       const dataUrl = `data:${mimeType};base64,${arrayBufferToBase64(bytes)}`;
       const result = await analyzeReceipt(env, dataUrl);
       const normalized = normalizeResult(result);
       // A parseable response is not necessarily a usable receipt. Do not charge
       // the free allowance when the final total or its currency is unknown.
       if (!(normalized.amount > 0) || !normalized.currency) {
-        await releaseReservation(usageStub, freeReservation); freeReservation = undefined;
+        if(freeReservation){await releaseReservation(usageStub, freeReservation); freeReservation = undefined;}
+        if(paidReservation){await ledgerCall(env,"/release",{userId:appUserId,requestId:paidReservation});paidReservation=undefined;}
         await releaseReservation(dailyStub, dailyReservation, "daily"); dailyReservation = undefined;
         await releaseReservation(globalStub, globalReservation, "daily"); globalReservation = undefined;
         return json({ code: "RECEIPT_UNREADABLE", error: "금액과 통화를 읽지 못했습니다. 이용 횟수는 차감되지 않았습니다." }, 422);
       }
 
-      await commitReservation(usageStub, freeReservation); freeReservation = undefined;
+      if(paidReservation) {
+        const sealedResult=await sealResult(env,appUserId,paidReservation,normalized);
+        const completed=await ledgerCall(env,"/complete",{userId:appUserId,requestId:paidReservation,sealedResult});
+        if(completed.status!=="completed")throw new Error("PAID_JOB_RELEASED");
+        paidCommitted=true;
+      }
+      if(freeReservation){await commitReservation(usageStub, freeReservation); freeReservation = undefined;}
       await commitReservation(dailyStub, dailyReservation, "daily"); dailyReservation = undefined;
       await commitReservation(globalStub, globalReservation, "daily"); globalReservation = undefined;
       return json(normalized);
     } catch (error) {
+      if(paidReservation&&!paidCommitted)await ledgerCall(env,"/release",{userId:appUserId,requestId:paidReservation}).catch(()=>{});
+      if(paidCommitted)return json({code:"RESULT_AVAILABLE",error:"결과 확인을 다시 시도해주세요. 추가 횟수는 차감되지 않아요."},503);
+      if(error?.status===402)return json({code:"AI_CREDITS_REQUIRED",error:"이용 가능한 분석 횟수가 없어요."},402);
       console.error("Receipt analysis failed", error?.stack || error?.message || String(error));
       if (freeReservation && usageStub) await releaseReservation(usageStub, freeReservation).catch(() => {});
       if (dailyReservation && dailyStub) await releaseReservation(dailyStub, dailyReservation, "daily").catch(() => {});
@@ -347,7 +395,7 @@ function arrayBufferToBase64(bytes) {
   return btoa(binary);
 }
 function corsHeaders() {
-  return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Authorization,Content-Type" };
+  return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Authorization,Content-Type,X-Receipt-Request-ID,X-Receipt-Use-Paid" };
 }
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders(), "Content-Type": "application/json; charset=utf-8" } });

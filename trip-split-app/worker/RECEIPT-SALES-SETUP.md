@@ -49,3 +49,31 @@ NON_RENEWING_PURCHASE만 구매 지급. CANCELLATION + CUSTOMER_SUPPORT만 현�
 - https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields
 - https://www.revenuecat.com/docs/getting-started/restoring-purchases
 - https://developers.cloudflare.com/durable-objects/api/legacy-kv-storage-api/
+
+## 2026-10-22 구현 갱신 — 이전 미구현 목록 중 코드 작업 완료
+
+유료 /receipt/analyze 연결, 구매 UI/SDK 거래 확인, 복구코드 발급·복구, AES-GCM 결과 재조회(24시간), 예약 자동 반환(15분), 결제 의도 지속 저장이 소스에 추가되었다. 상세 범위와 제한은 RELEASE-3.28.31.md 참조. 실제 계정 설정/배포/스토어 샌드박스 검증은 여전히 미완료이다.
+
+서버 설정 추가:
+- RECEIPT_RESULT_KEY: 새 32바이트 키를 64자리 hex로 Worker secret에 등록. 앱/깃/ZIP에 값 넣지 않음. 결과 보존 시간 내 교체 금지. 잔액/복구코드 해시는 이 키에 의존하지 않음.
+- RECEIPT_PAID_ANALYSIS_ENABLED: 기본 false. sandbox 원장과 인식 provider/비용 상한 검증 후 테스트 환경에만 true.
+- RECEIPT_SANDBOX_CHECKOUT_ENABLED: 환경 SANDBOX에서만 테스트 결제 허용.
+- RECEIPT_SALES_SANDBOX_VERIFIED: 기본 false. 실제 양 스토어 검증 결과가 있어야 PRODUCTION 판매 준비에 사용. sandbox UI를 열기 위해 이 값을 허위 true로 바꾸지 않음.
+- 기존 Worker의 migration 태그와 namespace 목록을 로그인 후 먼저 확인. wrangler.jsonc의 v2-receipt-credits를 실제 이력에 대조한 뒤 배포. 기존 RECEIPT_USAGE는 삭제/재생성하지 않음.
+
+앱:
+- receipt-sandbox EAS 프로필은 preview 환경 변수를 사용한다. EXPO_PUBLIC_RECEIPT_API_URL은 분리된 sandbox Worker /receipt/analyze 주소여야 한다. 같은 앱의 테스트 환경이며 새 앱/스토어 프로젝트를 만들 필요 없음.
+- EXPO_PUBLIC_REVENUECAT_IOS_KEY / EXPO_PUBLIC_REVENUECAT_ANDROID_KEY, TOGETRIP_IOS_RECEIPT_PACK10_ID / TOGETRIP_ANDROID_RECEIPT_PACK10_ID는 실제 계정에서 확인한 값만 등록한다.
+- 앱/서버 SANDBOX 환경이 일치해야 구매 가능. 무료/유료 분석은 기존 전체 하루 10회 상한을 유지한다. 테스트와 운영의 사용량 namespace를 분리해야 함.
+
+실제 통과해야 할 확인표:
+1. 스토어에서 받은 가격과 앱 표시 가격 일치, 승인한 한국 1,900원/10회 상품만 선택.
+2. 샌드박스 승인 → webhook 고유 거래 → 같은 사용자 10회 지급.
+3. 무료 소진 → 유료 성공 1회 차감; 실패/한도 초과는 미차감.
+4. 네트워크 중단/중복 버튼/앱 재시작 후 중복 결제·중복 차감 없음.
+5. 결과 응답 유실 후 재조회, 24시간 뒤 결과 삭제. 미완료는 15분 뒤 반환.
+6. 실제 재설치/다른 기기에서 복구코드로 잔액 복구. 소모성 상품 restorePurchases만으로 복구한다고 안내하지 않음.
+7. 결제 취소·보류·환불·중복 알림과 Google transactionIdentifier/webhook transaction_id 일치 확인.
+8. 앱 개인정보/스토어 데이터 고지에 분석 사진 전송·유료 결과 암호화 보관·계정 식별자 처리 반영.
+
+실기기 결과를 기록하기 전에는 production 구매 활성화 또는 판매 완료로 보고하지 않는다.

@@ -1,5 +1,5 @@
 /** Permanent paid-credit ledger. Single coordinator guarantees transaction uniqueness.
- * No alarms/TTL: purchased credit and transaction tombstones must never expire.
+ * Purchased credits and transaction tombstones never expire. Alarms clean result ciphertext and refund abandoned reservations only.
  * Only internal bindings may call this object; public access is gated by the worker.
  */
 export class ReceiptCreditLedger {
@@ -9,18 +9,74 @@ export class ReceiptCreditLedger {
     let input; try { input=await request.json(); } catch { return reply({error:'JSON'},400); }
     try {
       const data=await this.storage.transaction(tx=>apply(tx,new URL(request.url).pathname,input));
+      const expirations=await this.storage.get("result-expirations")||{};
+      const reservations=await this.storage.get("reservation-expirations")||{};
+      const next=Math.min(...Object.values(expirations),...Object.values(reservations));
+      if(Number.isFinite(next)&&this.storage.setAlarm)await this.storage.setAlarm(next);
       return reply(data);
     } catch(e) { return reply({error:e.code||'LEDGER_UNAVAILABLE'},e.status||503); }
+  }
+  async alarm() {
+    const next=await this.storage.transaction(async tx=>{
+      const expirations=await tx.get('result-expirations')||{};
+      for(const [jobKey,expires] of Object.entries(expirations))if(expires<=Date.now()) {
+        const job=await tx.get(jobKey);
+        if(job){const {sealedResult,resultExpiresAt,...metadata}=job;await tx.put(jobKey,metadata);}
+        delete expirations[jobKey];
+      }
+      await tx.put('result-expirations',expirations);
+      const reservations=await tx.get('reservation-expirations')||{};
+      for(const [jobKey,expires] of Object.entries(reservations))if(expires<=Date.now()) {
+        const job=await tx.get(jobKey);
+        if(job?.status==='reserved') {
+          const userId=decodeURIComponent(jobKey.split('/')[1]);
+          const balanceKey=key('balance',userId);await tx.put(balanceKey,(await tx.get(balanceKey)||0)+1);
+          await tx.put(jobKey,{...job,status:'released'});
+        }
+        delete reservations[jobKey];
+      }
+      await tx.put('reservation-expirations',reservations);
+      return Math.min(...Object.values(expirations),...Object.values(reservations));
+    });
+    if(Number.isFinite(next))await this.storage.setAlarm(next);
   }
 }
 const fail=(code,status=409)=>{throw Object.assign(new Error(code),{code,status});};
 const id=value=>typeof value==='string'&&/^[a-zA-Z0-9:_-]{1,200}$/.test(value);
 const key=(kind,...parts)=>[kind,...parts.map(encodeURIComponent)].join('/');
 async function apply(tx,path,input) {
+  if(path==='/recover') {
+    if(typeof input.codeHash!=='string'||!/^[0-9a-f]{64}$/.test(input.codeHash))fail('RECOVERY',400);
+    const userId=await tx.get(key('recovery',input.codeHash));
+    if(!userId)fail('RECOVERY',404);
+    return {userId};
+  }
   if(!id(input.userId)) fail('USER',400);
   const balanceKey=key('balance',input.userId);
   const balance=await tx.get(balanceKey)||0;
-  if(path==='/balance') return {balance:Math.max(0,balance),debt:Math.max(0,-balance)};
+  if(path==='/balance') return {balance:Math.max(0,balance),debt:Math.max(0,-balance),recoveryReady:await tx.get(key('recovery-confirmed',input.userId))===true};
+  if(path==='/recovery/create') {
+    if(typeof input.codeHash!=='string'||!/^[0-9a-f]{64}$/.test(input.codeHash))fail('RECOVERY',400);
+    const previousCode=await tx.get(key('recovery-user',input.userId));
+    if(previousCode) {
+      if(await tx.get(key('recovery-confirmed',input.userId)))fail('RECOVERY_EXISTS');
+      await tx.put(key('recovery',previousCode),null); // Lost issuance response can retry before confirmation.
+    }
+    await tx.put(key('recovery',input.codeHash),input.userId);
+    await tx.put(key('recovery-user',input.userId),input.codeHash);
+    return {created:true};
+  }
+  if(path==='/recovery/confirm') {
+    if(!await tx.get(key('recovery-user',input.userId)))fail('RECOVERY_MISSING');
+    await tx.put(key('recovery-confirmed',input.userId),true);return {confirmed:true};
+  }
+  if(path==='/transaction') {
+    if(!id(input.store)||!id(input.transactionId))fail('TRANSACTION',400);
+    const transaction=await tx.get(key('transaction',input.store,input.transactionId));
+    if(!transaction)return {status:'pending'};
+    if(transaction.userId!==input.userId)fail('TRANSACTION_OWNER');
+    return {status:transaction.refunded?'refunded':'confirmed'};
+  }
   if(path==='/grant'||path==='/refund') {
     if(!id(input.store)||!id(input.transactionId)||!id(input.productId)) fail('TRANSACTION',400);
     const transactionKey=key('transaction',input.store,input.transactionId);
@@ -51,24 +107,31 @@ async function apply(tx,path,input) {
     }
     if(balance<1) fail('CREDITS_REQUIRED',402);
     await tx.put(balanceKey,balance-1);
-    await tx.put(jobKey,{imageHash:input.imageHash,status:'reserved'});
+    await tx.put(jobKey,{imageHash:input.imageHash,status:'reserved',createdAt:Date.now()});
+    const reservations=await tx.get('reservation-expirations')||{};reservations[jobKey]=Date.now()+900000;await tx.put('reservation-expirations',reservations);
     return {status:'reserved',duplicate:false};
   }
   if(path==='/status') {
     if(!job) fail('JOB_NOT_FOUND',404);
-    return {status:job.status};
+    const expired=job.resultExpiresAt && job.resultExpiresAt<=Date.now();
+    if(expired&&job.sealedResult){const {sealedResult,resultExpiresAt,...rest}=job;await tx.put(jobKey,rest);}
+    return {status:job.status,...(job.sealedResult&&!expired?{sealedResult:job.sealedResult}:{}),createdAt:job.createdAt};
   }
   if(!job) fail('JOB_NOT_FOUND',404);
   if(path==='/complete') {
     if(job.status!=='reserved') return {status:job.status,duplicate:true};
-    // Recognition result is not persisted here: no receipt text/photo enters the ledger.
-    await tx.put(jobKey,{...job,status:'completed'});
+    if(input.sealedResult && (typeof input.sealedResult!=='string'||input.sealedResult.length>20000))fail('RESULT',400);
+    // Optional AES-GCM ciphertext only, no image or plaintext receipt data.
+    await tx.put(jobKey,{...job,status:'completed',...(input.sealedResult?{sealedResult:input.sealedResult,resultExpiresAt:Date.now()+86400000}:{})});
+    if(input.sealedResult){const expirations=await tx.get('result-expirations')||{};expirations[jobKey]=Date.now()+86400000;await tx.put('result-expirations',expirations);}
+    const reservations=await tx.get('reservation-expirations')||{};delete reservations[jobKey];await tx.put('reservation-expirations',reservations);
     return {status:'completed'};
   }
   if(path==='/release') {
     if(job.status!=='reserved') return {status:job.status,duplicate:true};
     await tx.put(jobKey,{...job,status:'released'});
     await tx.put(balanceKey,balance+1);
+    const reservations=await tx.get('reservation-expirations')||{};delete reservations[jobKey];await tx.put('reservation-expirations',reservations);
     return {status:'released'};
   }
   fail('NOT_FOUND',404);

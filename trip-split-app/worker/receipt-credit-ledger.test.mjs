@@ -4,6 +4,8 @@ import {ReceiptCreditLedger} from './receipt-credit-ledger.js';
 import {receiptCreditRoute} from './receipt-credit-routes.js';
 class TransactionalStorage {
   values=new Map();queue=Promise.resolve();
+  async get(key){return structuredClone(this.values.get(key));}
+  async setAlarm(value){this.alarmAt=value;}
   transaction(fn){const job=this.queue.then(async()=>{const copy=new Map(structuredClone([...this.values]));const result=await fn({get:async k=>copy.get(k),put:async(k,v)=>copy.set(k,structuredClone(v))});this.values=copy;return result;});this.queue=job.catch(()=>{});return job;}
 }
 function ledger(){const state={storage:new TransactionalStorage()};return {state,object:new ReceiptCreditLedger(state)};}
@@ -18,7 +20,7 @@ test('failure release is idempotent and cannot complete later',async()=>{const {
 test('completed success cannot be released for free credits',async()=>{const {object}=ledger();await call(object,'/grant',purchase);await call(object,'/reserve',job);await call(object,'/complete',job);await call(object,'/release',job);assert.equal((await call(object,'/balance')).balance,9);});
 test('refund before purchase blocks late grant permanently',async()=>{const {object}=ledger();await call(object,'/refund',purchase);await call(object,'/grant',purchase);assert.equal((await call(object,'/balance')).balance,0);});
 test('refund after spent credits carries debt without creating free credits',async()=>{const {object}=ledger();await call(object,'/grant',purchase);await call(object,'/reserve',job);await call(object,'/complete',job);await call(object,'/refund',purchase);await call(object,'/refund',purchase);assert.equal((await call(object,'/balance')).debt,1);assert.equal((await call(object,'/reserve',{...job,requestId:'next'})).status,402);await call(object,'/grant',{...purchase,transactionId:'tx2'});assert.equal((await call(object,'/balance')).balance,9);});
-test('restart retains purchases and reserved debit; ledger never sets expiry alarm',async()=>{const {object,state}=ledger();await call(object,'/grant',purchase);await call(object,'/reserve',job);const restarted=new ReceiptCreditLedger(state);assert.equal((await call(restarted,'/balance')).balance,9);assert.equal((await call(restarted,'/status',job)).status,'reserved');assert.equal('alarm' in restarted,false);});
+test('restart retains purchases and reserved debit; paid credits survive result cleanup alarm',async()=>{const {object,state}=ledger();await call(object,'/grant',purchase);await call(object,'/reserve',job);const restarted=new ReceiptCreditLedger(state);assert.equal((await call(restarted,'/balance')).balance,9);assert.equal((await call(restarted,'/status',job)).status,'reserved');await restarted.alarm();assert.equal((await call(restarted,'/balance')).balance,9);});
 test('another user cannot complete or query a job',async()=>{const {object}=ledger();await call(object,'/grant',purchase);await call(object,'/reserve',job);assert.equal((await call(object,'/complete',{...job,userId:'other'})).status,404);assert.equal((await call(object,'/status',{...job,userId:'other'})).status,404);});
 const uid='12345678-1234-1234-1234-123456789abc';
 function envFor(object){return {RECEIPT_CREDITS_ENABLED:'true',RECEIPT_CREDITS_ENVIRONMENT:'SANDBOX',RECEIPT_RC_WEBHOOK_SECRET:'s'.repeat(32),RECEIPT_IOS_PACK10_ID:'pack10',RECEIPT_RC_IOS_APP_ID:'app1',RECEIPT_CREDIT_LEDGER:{idFromName:n=>n,get:()=>({fetch:(url,init)=>object.fetch(new Request(url,init))})}};}

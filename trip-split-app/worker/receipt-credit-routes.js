@@ -1,18 +1,29 @@
+import {paidConfigured} from "./receipt-paid.js";
 /** Purchase grants only come from an authenticated RevenueCat server webhook.
  * This does not expose an analysis or client-controlled grant endpoint.
  */
 export async function receiptCreditRoute(request,env,authenticate) {
   const path=new URL(request.url).pathname;
-  if(!['/receipt/credits','/receipt/credits/webhook'].includes(path)) return null;
+  if(!['/receipt/credits','/receipt/credits/webhook','/receipt/credits/transaction'].includes(path)) return null;
   if(env.RECEIPT_CREDITS_ENABLED!=='true'||!env.RECEIPT_CREDIT_LEDGER) return json({error:'PAID_RECEIPTS_DISABLED'},503);
   const environment=env.RECEIPT_CREDITS_ENVIRONMENT;
   if(!['SANDBOX','PRODUCTION'].includes(environment)) return json({error:'BILLING_ENVIRONMENT'},503);
   const stub=env.RECEIPT_CREDIT_LEDGER.get(env.RECEIPT_CREDIT_LEDGER.idFromName(`receipt-credits:${environment}`));
+  if(path==='/receipt/credits/transaction') {
+    if(request.method!=='GET')return json({error:'METHOD'},405);
+    const user=await authenticate(request,env);if(!user)return json({error:'SESSION_REQUIRED'},401);
+    const query=new URL(request.url).searchParams;
+    return stub.fetch('https://ledger/transaction',{method:'POST',body:JSON.stringify({userId:user.sub,store:query.get('store'),transactionId:query.get('id')})});
+  }
   if(path==='/receipt/credits') {
     if(request.method!=='GET') return json({error:'METHOD'},405);
     const user=await authenticate(request,env);
     if(!user) return json({error:'SESSION_REQUIRED'},401);
-    return stub.fetch('https://ledger/balance',{method:'POST',body:JSON.stringify({userId:user.sub})});
+    const balanceResponse=await stub.fetch('https://ledger/balance',{method:'POST',body:JSON.stringify({userId:user.sub})});
+    if(!balanceResponse.ok)return json({error:'BALANCE'},503);
+    const balance=await balanceResponse.json();
+    const ready=paidConfigured(env)&&(environment==='SANDBOX'?env.RECEIPT_SANDBOX_CHECKOUT_ENABLED==='true':env.RECEIPT_SALES_SANDBOX_VERIFIED==='true')&&Boolean(env.RECEIPT_IOS_PACK10_ID&&env.RECEIPT_ANDROID_PACK10_ID);
+    return json({...balance,environment,appUserId:`receipt:${user.sub}`,creditsPerPurchase:10,paidAnalysisReady:paidConfigured(env),salesReady:ready});
   }
   if(request.method!=='POST') return json({error:'METHOD'},405);
   const secret=env.RECEIPT_RC_WEBHOOK_SECRET;

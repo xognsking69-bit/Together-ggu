@@ -5,8 +5,8 @@ import ts from 'typescript';
 const {outputText}=ts.transpileModule(fs.readFileSync(new URL('../src/monetization/receipt-pack.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ES2022}});
 const {receiptPackReady,validReceiptPack}=await import('data:text/javascript;base64,'+Buffer.from(outputText).toString('base64'));
 const user='receipt:12345678-1234-1234-1234-123456789abc';
-const config={enabled:true,apiKey:'public-test-key',productId:'receipt10',platform:'ios'};
-const server={salesReady:true,paidAnalysisReady:true,recoveryReady:true,creditsPerPurchase:10,appUserId:user};
+const config={enabled:true,apiKey:'public-test-key',productId:'receipt10',platform:'ios',environment:'SANDBOX'};
+const server={environment:'SANDBOX',salesReady:true,paidAnalysisReady:true,recoveryReady:true,creditsPerPurchase:10,appUserId:user};
 const product={identifier:'receipt10',productCategory:'NON_SUBSCRIPTION',productType:'CONSUMABLE',subscriptionPeriod:null,price:1900,priceString:'₩1,900',currencyCode:'KRW'};
 test('receipt checkout stays blocked unless all paid services and recovery are ready',()=>{
  assert.equal(receiptPackReady(config,server,user),true);
@@ -32,3 +32,5 @@ test('Android unknown product type still requires exact configured non-subscript
  assert.equal(validReceiptPack({...product,productType:'UNKNOWN'},config),false);
  assert.equal(validReceiptPack({...product,productType:'UNKNOWN',identifier:'other'},android),false);
 });
+
+test('sandbox checkout cannot use production credit ledger',()=>{assert.equal(receiptPackReady(config,{...server,environment:'PRODUCTION'},user),false);assert.equal(receiptPackReady({...config,environment:'PRODUCTION'},server,user),false);});

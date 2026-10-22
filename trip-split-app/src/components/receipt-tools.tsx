@@ -15,9 +15,8 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { File } from "expo-file-system";
-import { fetch as expoFetch } from "expo/fetch";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
+import {getGuestSession,removeGuestSession,receiptFetch} from "../receipt-session";
+import {pendingAnalysis,savePendingAnalysis,clearPendingAnalysis,newAnalysisId} from "../receipt-pending";
 
 export type ReceiptResult = {
   merchant?: string;
@@ -38,54 +37,6 @@ type Props = {
 };
 
 type Usage = { freeRemaining: number };
-type GuestSession = { guestId: string; token: string; expiresAt: number };
-const GUEST_SESSION_KEY = "togetrip-receipt-guest-session-v1";
-let guestSessionPromise: Promise<GuestSession> | null = null;
-
-async function readGuestSession() {
-  return Platform.OS === "web"
-    ? AsyncStorage.getItem(GUEST_SESSION_KEY)
-    : SecureStore.getItemAsync(GUEST_SESSION_KEY);
-}
-async function writeGuestSession(value: string) {
-  if (Platform.OS === "web") await AsyncStorage.setItem(GUEST_SESSION_KEY, value);
-  else await SecureStore.setItemAsync(GUEST_SESSION_KEY, value);
-}
-async function removeGuestSession() {
-  if (Platform.OS === "web") await AsyncStorage.removeItem(GUEST_SESSION_KEY);
-  else await SecureStore.deleteItemAsync(GUEST_SESSION_KEY);
-}
-
-async function getGuestSession(endpoint: string, request: typeof fetch): Promise<GuestSession> {
-  if (guestSessionPromise) return guestSessionPromise;
-  guestSessionPromise = (async () => {
-    let cached: GuestSession | null = null;
-    try {
-      const saved = await readGuestSession();
-      if (saved) cached = JSON.parse(saved) as GuestSession;
-    } catch {}
-    const now = Math.floor(Date.now() / 1000);
-    if (cached?.guestId && cached.token && cached.expiresAt > now + 30 * 24 * 60 * 60) return cached;
-
-    const sessionUrl = endpoint.replace(/\/receipt\/analyze\/?$/i, "/receipt/guest/session");
-    const response = await request(sessionUrl, {
-      method: "POST",
-      headers: cached?.token && cached.expiresAt > now ? { Authorization: `Bearer ${cached.token}` } : undefined,
-    });
-    if (!response.ok) throw new Error(response.status === 429
-      ? "게스트 이용 준비 한도에 도달했어요. 내일 다시 시도해주세요."
-      : "영수증 AI 연결을 준비하지 못했어요. 잠시 후 다시 시도해주세요.");
-    const session = await response.json() as GuestSession;
-    if (!session?.guestId || !session?.token || !Number.isFinite(session.expiresAt)) {
-      throw new Error("게스트 연결 정보가 올바르지 않아요.");
-    }
-    await writeGuestSession(JSON.stringify(session));
-    return session;
-  })();
-  try { return await guestSessionPromise; }
-  finally { guestSessionPromise = null; }
-}
-
 const ALLOWED_CURRENCIES = CURRENCIES;
 const ALLOWED_CATEGORIES = ["식비", "카페", "교통", "숙박", "관광", "쇼핑", "기타"] as const;
 
@@ -139,16 +90,18 @@ export default function ReceiptTools({
   const selectionGeneration=useRef(0);
   const [preparing, setPreparing]=useState(false);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;selectionGeneration.current++;onPreparingChange?.(false);};},[onPreparingChange]);
+  const analysisLock=useRef(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [unavailableUri, setUnavailableUri] = useState<string | null>(null);
   const photoUnavailable = Boolean(receiptUri && unavailableUri === receiptUri);
   const [lastResult, setLastResult] = useState<ReceiptResult | null>(null);
+  const [balanceRevision,setBalanceRevision]=useState(0);
   const [usage, setUsage] = useState<Usage>({ freeRemaining: -1 });
 
   const refreshUsage = useCallback(async () => {
     const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
     if (!endpoint) return;
-    const request = Platform.OS === "web" ? fetch : expoFetch;
+    const request = receiptFetch;
     const session = await getGuestSession(endpoint, request);
     const usageUrl = endpoint.replace(/\/receipt\/analyze\/?$/i, "/receipt/usage");
     const response = await request(usageUrl, { headers: { Authorization: `Bearer ${session.token}` } });
@@ -158,6 +111,7 @@ export default function ReceiptTools({
     }
     if (response.ok) {
       const data = await response.json();
+      setBalanceRevision(value=>value+1);
       setUsage({
         freeRemaining: Math.max(0, Number(data?.freeRemaining) || 0),
       });
@@ -224,7 +178,7 @@ export default function ReceiptTools({
   }
 
   async function analyzeReceipt() {
-    if (!receiptUri || photoUnavailable || analyzing || preparing) return;
+    if (!receiptUri || photoUnavailable || analyzing || preparing || analysisLock.current) return;
 
     const endpoint = process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
     if (!endpoint) {
@@ -236,12 +190,21 @@ export default function ReceiptTools({
     }
 
     const generation=selectionGeneration.current;
+    analysisLock.current=true;
     try {
       setAnalyzing(true);
 
-      const request = Platform.OS === "web" ? fetch : expoFetch;
+      const request = receiptFetch;
       const session = await getGuestSession(endpoint, request);
 
+      const saved=await pendingAnalysis();
+      if(saved&&saved.userId!==session.guestId)throw new Error("다른 이용권 계정의 분석 확인이 남아 있어요.");
+      if(saved&&saved.uri!==receiptUri)throw new Error("이전 영수증의 처리 결과를 먼저 확인해주세요.");
+      const requestId=saved?.requestId||newAnalysisId();
+      let remaining=usage.freeRemaining;
+      if(remaining<0){const r=await request(endpoint.replace(/\/receipt\/analyze\/?$/i,"/receipt/usage"),{headers:{Authorization:`Bearer ${session.token}`}});if(!r.ok)throw new Error("이용 횟수를 확인하지 못했어요. 다시 시도해주세요.");remaining=Number((await r.json()).freeRemaining);if(!Number.isFinite(remaining))throw new Error("이용 횟수를 확인하지 못했어요.");}
+      const usePaid=Boolean(saved)||remaining<=0;
+      if(usePaid)await savePendingAnalysis({requestId,userId:session.guestId,uri:receiptUri});
       const form = new FormData();
 
       if (Platform.OS === "web") {
@@ -263,7 +226,7 @@ export default function ReceiptTools({
 
       const response = await request(endpoint.replace(/\/$/, ""), {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.token}` },
+        headers: { Authorization: `Bearer ${session.token}`, "X-Receipt-Request-ID":requestId, "X-Receipt-Use-Paid":String(usePaid) },
         body: form,
       });
 
@@ -271,6 +234,8 @@ export default function ReceiptTools({
       if(!mounted.current || generation !== selectionGeneration.current) return;
 
       if (!response.ok) {
+        if(["ANALYSIS_RELEASED","RESULT_EXPIRED"].includes(raw?.code))await clearPendingAnalysis();
+        else if(response.status<500&&!["ANALYSIS_PENDING","RESULT_AVAILABLE"].includes(raw?.code))await clearPendingAnalysis();
         if (response.status === 402 || raw?.code === "AI_CREDITS_REQUIRED") {
           await refreshUsage().catch(() => {});
           Alert.alert("무료 분석을 모두 사용했어요", "현재 무료 체험은 5회까지 제공됩니다. 10회권 판매 준비 상태는 구매 안내에서 확인해주세요.");
@@ -299,6 +264,7 @@ export default function ReceiptTools({
         throw new Error("영수증 정보를 충분히 읽지 못했어요.");
       }
 
+      await clearPendingAnalysis();
       setLastResult(parsed);
       onDetected(parsed);
       await refreshUsage().catch(() => {});
@@ -310,8 +276,27 @@ export default function ReceiptTools({
           "사진 상태나 네트워크를 확인해주세요. AI 결과는 저장 전에 직접 확인해주세요."
       );
     } finally {
+      analysisLock.current=false;
       if(mounted.current && generation===selectionGeneration.current) setAnalyzing(false);
     }
+  }
+
+  async function recoverAnalysis() {
+    if(analyzing||preparing||analysisLock.current)return;
+    analysisLock.current=true;setAnalyzing(true);
+    try {
+      const saved=await pendingAnalysis();if(!saved){Alert.alert("분석 결과 확인","확인할 분석이 없어요.");return;}
+      const endpoint=process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();if(!endpoint)throw new Error("연결할 수 없어요.");
+      const request=receiptFetch;const session=await getGuestSession(endpoint,request);
+      if(saved.userId!==session.guestId)throw new Error("이전 이용권 계정의 복구코드로 복원한 뒤 확인해주세요.");
+      const response=await request(endpoint.replace(/\/receipt\/analyze\/?$/i,"/receipt/analysis/result")+"?id="+encodeURIComponent(saved.requestId),{headers:{Authorization:`Bearer ${session.token}`}});
+      const data=await response.json();
+      if([404,410].includes(response.status)||data?.status==="released") {await clearPendingAnalysis();Alert.alert("분석 결과 확인","저장된 결과가 없거나 보관 기간이 지났어요. 이용권 잔액을 확인해주세요.");return;}
+      if(!response.ok)throw new Error("분석 처리 중이거나 연결할 수 없어요. 잠시 후 다시 확인해주세요.");
+      const parsed=normalizeResult(data);
+      Alert.alert("이전 분석 결과","현재 지출 입력칸에 이 결과를 반영할까요?",[{text:"취소",style:"cancel"},{text:"반영",onPress:()=>{onDetected(parsed);setLastResult(parsed);void clearPendingAnalysis();void refreshUsage();}}]);
+    }catch(error){Alert.alert("분석 결과 확인",(error as Error).message);}
+    finally{analysisLock.current=false;if(mounted.current)setAnalyzing(false);}
   }
 
   return (
@@ -356,16 +341,18 @@ export default function ReceiptTools({
         ? "웹에서는 영수증 사진을 장기 보관하지 않아요. 원본 사진은 따로 보관해주세요."
         : "새로 선택한 사진은 앱 전용 폴더에 사본으로 보관해요. 첨부를 해제하고 저장하거나 지출을 삭제하면 기기 저장 성공 후 사용하지 않는 앱 사본을 정리해요. 원본 사진과 서버 데이터는 삭제하지 않아요."}</Text>
       <Text localize style={[styles.helper,{color:colors.muted}]}>영수증 사진은 JSON 백업에 포함되지 않아요. 원본 사진은 따로 보관해주세요.</Text>
+      <Text localize style={[styles.helper,{color:colors.muted}]}>AI 분석 시 사진을 서버로 전송해요. 유료 분석 결과는 재확인을 위해 암호화해 최대 24시간 보관한 뒤 삭제해요. 민감한 정보는 가리고 촬영해주세요.</Text>
       <View style={styles.usageRow}>
         <Text style={[styles.usageText,isDark&&{color:colors.text}]}>
           {usage.freeRemaining < 0 ? "사용량 불러오는 중" : `무료 분석 ${usage.freeRemaining}/5회 남음`}
         </Text>
       </View>
 
-      <ReceiptPackPurchase getSession={async()=>{
+      <Pressable accessibilityRole="button" disabled={analyzing||preparing} onPress={()=>{void recoverAnalysis();}} style={{paddingVertical:12}}><Text localize style={{color:colors.text,fontWeight:"700"}}>이전 분석 결과 확인</Text></Pressable>
+      <ReceiptPackPurchase refreshRevision={balanceRevision} onBalanceChange={()=>{void refreshUsage();}} getSession={async()=>{
         const endpoint=process.env.EXPO_PUBLIC_RECEIPT_API_URL?.trim();
         if(!endpoint) throw new Error("영수증 AI에 연결할 수 없어요.");
-        const session=await getGuestSession(endpoint,Platform.OS==="web"?fetch:expoFetch);
+        const session=await getGuestSession(endpoint,receiptFetch);
         return {endpoint,...session};
       }}/>
 

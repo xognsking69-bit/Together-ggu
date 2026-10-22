@@ -1,10 +1,10 @@
 // A 10-use consumable only. Store billing cannot be opened until server readiness
 // (including paid analysis and recoverable identity) has been verified.
-export type ReceiptPackConfig={enabled:boolean;apiKey:string;productId:string;platform:string};
+export type ReceiptPackConfig={enabled:boolean;apiKey:string;productId:string;platform:string;environment:"SANDBOX"|"PRODUCTION"};
 export type ReceiptStoreProduct={identifier:string;productCategory?:string|null;productType:string;subscriptionPeriod:string|null;price:number;priceString:string;currencyCode:string};
-export type ReceiptSalesReadiness={salesReady?:boolean;paidAnalysisReady?:boolean;recoveryReady?:boolean;creditsPerPurchase?:number;appUserId?:string};
+export type ReceiptSalesReadiness={salesReady?:boolean;paidAnalysisReady?:boolean;recoveryReady?:boolean;creditsPerPurchase?:number;appUserId?:string;environment?:string};
 export function receiptPackReady(config:ReceiptPackConfig,server:ReceiptSalesReadiness,userId:string) {
- return config.enabled && ['ios','android'].includes(config.platform) && Boolean(config.apiKey&&config.productId) &&
+ return config.enabled && ['SANDBOX','PRODUCTION'].includes(config.environment) && server.environment===config.environment && ['ios','android'].includes(config.platform) && Boolean(config.apiKey&&config.productId) &&
   /^receipt:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId) &&
   server.appUserId===userId && server.salesReady===true && server.paidAnalysisReady===true && server.recoveryReady===true && server.creditsPerPurchase===10;
 }

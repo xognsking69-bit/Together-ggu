@@ -2,6 +2,18 @@ import {HELP_TRANSLATIONS} from "./help-translations";
 // App-owned UI labels only. Never apply to travel names, people or entered content.
 export const DICTIONARY:Record<string,readonly [string,string,string]>={
 ...HELP_TRANSLATIONS,
+"이전 분석 결과 확인":["Check previous analysis", "以前の解析結果を確認", "查看之前的识别结果"],
+"구매·잔액 다시 확인":["Refresh purchase and balance", "購入・残高を再確認", "刷新购买与余额"],
+"이용권 복구코드":["Scan credit recovery code", "利用券の復旧コード", "次数包恢复码"],
+"구매 전에 복구코드를 안전한 곳에 저장해주세요. 재설치·다른 휴대폰에서 이용권 계정을 되찾을 때 필요해요. 다른 사람에게 공유하지 마세요.":["Save your recovery code somewhere safe before purchasing. You need it to recover scan credits after reinstalling or switching phones. Do not share it.", "購入前に復旧コードを安全な場所に保存してください。再インストールや機種変更時の利用券復旧に必要です。他人に共有しないでください。", "购买前请妥善保存恢复码。重新安装或更换手机时，需要用它恢复次数包账户。请勿分享给他人。"],
+"복구코드 발급·다시 보기":["Create or view recovery code", "復旧コードの発行・再表示", "生成或查看恢复码"],
+"코드를 길게 눌러 복사한 뒤 앱 밖의 안전한 곳에 보관해주세요.":["Long-press to copy the code and save it securely outside this app.", "コードを長押ししてコピーし、アプリ外の安全な場所に保存してください。", "长按复制恢复码，并将其保存在此应用之外的安全位置。"],
+"복구코드를 따로 저장했어요":["I saved my recovery code", "復旧コードを別の場所に保存しました", "我已另行保存恢复码"],
+"기존 이용권 계정 복구":["Recover scan credit account", "利用券アカウントを復旧", "恢复次数包账户"],
+"저장해둔 복구코드 입력":["Enter your saved recovery code", "保存した復旧コードを入力", "输入已保存的恢复码"],
+"서비스의 하루 처리 한도가 있어요. 한도 도달이나 분석 실패 시 이용권은 차감되지 않아요.":["The service has a daily processing limit. Failed scans and limit blocks do not use paid credits.", "サービスには1日の処理上限があります。上限到達や解析失敗の場合、利用券は減りません。", "服务设有每日处理上限。达到上限或识别失败时，不会扣除付费次数。"],
+"AI 분석 시 사진을 서버로 전송해요. 유료 분석 결과는 재확인을 위해 암호화해 최대 24시간 보관한 뒤 삭제해요. 민감한 정보는 가리고 촬영해주세요.":["Photos are sent to the server for AI analysis. Paid results are encrypted for retrieval for up to 24 hours, then deleted. Cover sensitive details before taking photos.", "AI解析のため写真をサーバーへ送信します。有料解析結果は再確認用に最大24時間暗号化して保存し、その後削除します。機密情報は隠して撮影してください。", "照片会发送到服务器进行AI识别。付费识别结果将加密保存最多24小时以供重新查看，之后删除。拍照前请遮挡敏感信息。"],
+
 "영수증 AI 10회권":["Receipt AI · 10 scans", "レシートAI 10回パック", "收据AI 10次包"],
 "사진 촬영·선택 후 영수증 정보를 자동 입력하는 분석 이용권이에요. 촬영 자체는 무료예요.":["Use scans to fill expenses from receipt photos. Taking photos is free.", "撮影・選択したレシートから自動入力する解析パックです。撮影自体は無料です。", "拍摄或选择收据后自动填写信息的识别次数包。拍照本身免费。"],
 "10회권 구매":["Buy 10 scans", "10回パックを購入", "购买10次包"],

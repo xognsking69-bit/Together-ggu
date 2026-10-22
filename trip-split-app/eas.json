@@ -40,6 +40,14 @@
         "EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID": "ca-app-pub-1867930342924422/2084746976",
         "EXPO_PUBLIC_ADMOB_IOS_BANNER_ID": "ca-app-pub-1867930342924422/4089851373"
       }
+    },
+    "receipt-sandbox": {
+      "extends": "production",
+      "environment": "preview",
+      "env": {
+        "TOGETRIP_ADS_MODE": "test",
+        "TOGETRIP_RECEIPT_SANDBOX": "true"
+      }
     }
   },
   "submit": {
