@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import type { Expense, Person } from "../types";
+import { localDateKey, parseLocalDate, calendarDayDiff } from "../dates";
 
 export type TripPlan = {
   id: string;
@@ -46,9 +47,8 @@ function keyOf(year: number, month: number, day: number) {
 
 function dayDiff(from?: string, to?: string) {
   if (!from || !to) return null;
-  const a = new Date(`${from}T12:00:00`).getTime();
-  const b = new Date(`${to}T12:00:00`).getTime();
-  return Math.floor((b-a)/86400000);
+  const a = parseLocalDate(from), b = parseLocalDate(to);
+  return a && b ? calendarDayDiff(a,b) : null;
 }
 
 function planIcon(type:TripPlan["type"]) {
@@ -89,7 +89,7 @@ export default function TripCalendar({
   );
 
   const [selectedDate, setSelectedDate] = useState(
-    initialDate || new Date().toISOString().slice(0, 10)
+    initialDate || localDateKey()
   );
 
   useEffect(()=>{
@@ -245,48 +245,51 @@ export default function TripCalendar({
       </View>
 
       <View style={styles.grid}>
-        {cells.map(cell=>{
-          const selected=cell.date===selectedDate;
-          const range=inTripRange(cell.date);
-          const tripDay = range && startDate ? (dayDiff(startDate,cell.date) ?? 0)+1 : null;
-          const isStart=cell.date===startDate;
-          const isEnd=cell.date===endDate;
+        {Array.from({length:6},(_,week)=>(
+          <View key={week} style={styles.calendarWeek}>
+          {cells.slice(week*7,week*7+7).map(cell=>{
+            const selected=cell.date===selectedDate;
+            const range=inTripRange(cell.date);
+            const tripDay = range && startDate ? (dayDiff(startDate,cell.date) ?? 0)+1 : null;
+            const isStart=cell.date===startDate;
+            const isEnd=cell.date===endDate;
 
-          return (
-            <Pressable
-              key={cell.date}
-              style={[
-                styles.day,
-                cell.otherMonth&&styles.otherMonth,
-                range&&{backgroundColor:accentSoft},
-                selected&&{borderWidth:2,borderColor:accent},
-              ]}
-              onPress={()=>{
-                setSelectedDate(cell.date);
-                const d=new Date(`${cell.date}T12:00:00`);
-                setCursor(new Date(d.getFullYear(),d.getMonth(),1));
-              }}
-            >
-              <View style={styles.dayTop}>
-                <Text style={[styles.dayNumber,range&&{color:accent,fontWeight:"900"}]}>{cell.day}</Text>
-                {Boolean(tripDay) && (
-                  <Text style={[styles.tripDayBadge,{color:accent}]}>
-                    {tripDay}일차
+            return (
+              <Pressable
+                key={cell.date}
+                style={[
+                  styles.day,
+                  cell.otherMonth&&styles.otherMonth,
+                  range&&{backgroundColor:accentSoft},
+                  selected&&{borderWidth:2,borderColor:accent},
+                ]}
+                onPress={()=>{
+                  setSelectedDate(cell.date);
+                  const d=new Date(`${cell.date}T12:00:00`);
+                  setCursor(new Date(d.getFullYear(),d.getMonth(),1));
+                }}
+              >
+                <View style={styles.dayTop}>
+                  <Text style={[styles.dayNumber,range&&{color:accent,fontWeight:"900"}]}>{cell.day}</Text>
+                  {Boolean(tripDay) && (
+                    <Text style={[styles.tripDayBadge,{color:accent}]}>
+                      {tripDay}일차
+                    </Text>
+                  )}
+                </View>
+
+                {(isStart || isEnd) && (
+                  <Text numberOfLines={1} style={[styles.rangeLabel,{color:accent}]}>
+                    {isStart ? "출발" : "귀국"}
                   </Text>
                 )}
-              </View>
 
-              {(isStart || isEnd) && (
-                <Text numberOfLines={1} style={[styles.rangeLabel,{color:accent}]}>
-                  {isStart ? "출발" : "귀국"}
-                </Text>
-              )}
+                {!!cell.plans.length && (
+                  <View style={styles.planDots}>
+                    {cell.plans.slice(0,3).map(p=>(
+                      <Text key={p.id} style={styles.planDotText}>{planIcon(p.type)}</Text>
 
-              {!!cell.plans.length && (
-                <View style={styles.planDots}>
-                  {cell.plans.slice(0,3).map(p=>(
-                    <Text key={p.id} style={styles.planDotText}>{planIcon(p.type)}</Text>
-                  ))}
+        ))}
                 </View>
               )}
 
@@ -298,6 +301,8 @@ export default function TripCalendar({
             </Pressable>
           );
         })}
+        </View>
+        ))}
       </View>
 
       <View style={styles.divider}/>
@@ -456,7 +461,8 @@ const styles=StyleSheet.create({
   bookingNights:{fontSize:9,color:"#6D718A",fontWeight:"800",paddingHorizontal:5},
   weekRow:{flexDirection:"row",marginBottom:5},
   weekText:{
-    width:`${100/7}%`,
+    flex:1,
+    minWidth:0,
     textAlign:"center",
     fontSize:11,
     color:"#8589A5",
@@ -464,20 +470,22 @@ const styles=StyleSheet.create({
   },
   sunday:{color:"#DE6C78"},
   saturday:{color:"#4B79C6"},
-  grid:{flexDirection:"row",flexWrap:"wrap"},
+  grid:{},
+  calendarWeek:{flexDirection:"row",alignItems:"stretch"},
   day:{
-    width:`${100/7}%`,
+    flex:1,
+    minWidth:0,
     minHeight:72,
     borderWidth:StyleSheet.hairlineWidth,
     borderColor:"#E5E7F0",
     padding:4,
   },
   otherMonth:{opacity:0.30},
-  dayTop:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
+  dayTop:{flexDirection:"row",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"},
   dayNumber:{fontSize:11,fontWeight:"700",color:"#30334D"},
   tripDayBadge:{fontSize:7,fontWeight:"900"},
   rangeLabel:{fontSize:8,fontWeight:"900",marginTop:4},
-  planDots:{flexDirection:"row",gap:1,marginTop:4},
+  planDots:{flexDirection:"row",flexWrap:"wrap",gap:1,marginTop:4},
   planDotText:{fontSize:9},
   dayAmount:{fontSize:8,fontWeight:"800",marginTop:4,color:"#555A76"},
   divider:{
